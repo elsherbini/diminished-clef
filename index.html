@@ -1,0 +1,591 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<title>Diminished Staff</title>
+	<script src="dist/abcjs-basic.js" type="text/javascript"></script>
+	<link rel="stylesheet" type="text/css" href="abcjs-audio.css">
+	<style>
+		* { box-sizing: border-box; }
+		body {
+			font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+			max-width: 1200px;
+			margin: 0 auto;
+			padding: 20px;
+			color: #333;
+			line-height: 1.6;
+		}
+		header {
+			display: flex;
+			align-items: baseline;
+			gap: 40px;
+			border-bottom: 1px solid #ddd;
+			margin-bottom: 30px;
+			padding-bottom: 10px;
+		}
+		header h1 { margin: 0; }
+		.tab-nav { display: flex; gap: 5px; }
+		.tab-btn {
+			padding: 8px 20px;
+			border: 1px solid #ccc;
+			background: #f5f5f5;
+			cursor: pointer;
+			font-size: 15px;
+			border-radius: 4px 4px 0 0;
+			border-bottom: none;
+			position: relative;
+			bottom: -1px;
+		}
+		.tab-btn.active {
+			background: #fff;
+			border-bottom: 1px solid #fff;
+			font-weight: bold;
+		}
+		.hidden { display: none; }
+
+		/* About tab */
+		#about-tab p { max-width: 800px; }
+		.example {
+			margin: 20px 0 30px;
+			border: 1px solid #ddd;
+			border-radius: 4px;
+			padding: 15px;
+		}
+		.example-render {
+			display: flex;
+			gap: 20px;
+		}
+		.example-side { flex: 1; }
+		.example-side h4 { margin: 0 0 5px; color: #666; font-size: 14px; }
+		.render-target { border: 1px solid #eee; padding: 10px; min-height: 80px; }
+		.example-audio {
+			margin-top: 10px;
+			padding-top: 10px;
+			border-top: 1px solid #eee;
+		}
+		.example-audio-top {
+			margin-top: 0;
+			margin-bottom: 10px;
+			padding-top: 0;
+			padding-bottom: 10px;
+			border-top: none;
+			border-bottom: 1px solid #eee;
+		}
+
+		/* Editor tab */
+		#editor-tab textarea {
+			width: 100%;
+			height: 150px;
+			font-family: monospace;
+			font-size: 14px;
+			padding: 10px;
+			margin-bottom: 10px;
+		}
+		.controls-row {
+			margin-bottom: 15px;
+			display: flex;
+			gap: 20px;
+			align-items: center;
+			flex-wrap: wrap;
+		}
+		.view-toggle { display: flex; gap: 5px; }
+		.view-toggle button {
+			padding: 6px 16px;
+			border: 1px solid #ccc;
+			background: #f5f5f5;
+			cursor: pointer;
+			font-size: 14px;
+		}
+		.view-toggle button.active {
+			background: #333;
+			color: #fff;
+			border-color: #333;
+		}
+		#editor-audio { flex: 1; min-width: 250px; }
+		.output { display: flex; gap: 40px; }
+		.output > div { flex: 1; }
+		.output > div.hidden { display: none; }
+		.output h3 { margin: 0 0 5px; color: #666; }
+
+		/* Note colors */
+		.note-blue { color: #2255cc; font-weight: 600; }
+		.note-red { color: #cc2222; font-weight: 600; }
+		.note-yellow { color: #b8860b; font-weight: 600; }
+		.note-purple { color: #7733aa; font-weight: 600; }
+		.note-orange { color: #cc6600; font-weight: 600; }
+
+		/* Shared */
+		.abcjs-cursor { stroke: red; stroke-width: 2; opacity: 0.7; }
+		.highlight { fill: #0a9ecc; }
+		footer { margin-top: 40px; padding-top: 20px; border-top: 1px solid #ddd; color: #666; font-size: 14px; }
+	</style>
+</head>
+<body>
+	<header>
+		<h1>Diminished Staff</h1>
+		<nav class="tab-nav">
+			<button class="tab-btn active" data-tab="about" onclick="switchTab('about')">About</button>
+			<button class="tab-btn" data-tab="editor" onclick="switchTab('editor')">Editor</button>
+		</nav>
+	</header>
+
+	<main>
+		<!-- ===== ABOUT TAB ===== -->
+		<section id="about-tab">
+			<h2>Diminished Clef</h2>
+
+			<p>Each note gets its own place on the staff. The staff holds two octaves from <span class="note-blue">D</span>4 to <span class="note-blue">D</span>6. Each line is a minor third. The clef symbol is a <span class="note-blue">D</span> and it is centered on the middle ledger line, which is <span class="note-blue">D</span>5. The symbol was created by <a href="https://hellsten.kapsi.fi/dclef/">Alex Hellsten</a>, used under a <a href="http://creativecommons.org/licenses/by/4.0/">Creative Commons Attribution 4.0 International License</a>.</p>
+
+			<div class="example">
+				<div class="example-render">
+					<div class="example-side"><h4>Traditional</h4><div id="ex1-trad" class="render-target"></div></div>
+					<div class="example-side"><h4>Diminished Staff</h4><div id="ex1-dim" class="render-target"></div></div>
+				</div>
+				<div id="ex1-audio" class="example-audio"></div>
+			</div>
+
+			<p>Here's a chromatic scale from A to A on the diminished clef.</p>
+
+			<div class="example">
+				<div class="example-render">
+					<div class="example-side"><h4>Traditional</h4><div id="ex1b-trad" class="render-target"></div></div>
+					<div class="example-side"><h4>Diminished Staff</h4><div id="ex1b-dim" class="render-target"></div></div>
+				</div>
+				<div id="ex1b-audio" class="example-audio"></div>
+			</div>
+
+			<p>Notes on the line get a normal notehead, notes a half step up are an upward pointing triangle above the line, and notes a half step down are a downward facing triangle below the line. Notes get colored by the diminished chord they belong to: <span class="note-blue">D diminished</span> is <span class="note-blue">blue</span>, <span class="note-red">G diminished</span> is <span class="note-red">red</span>, and <span class="note-yellow">C diminished</span> is <span class="note-yellow">yellow</span>. This color concept was invented by Tom Glazebrook and is part of a system called <a href="https://www.instagram.com/metaharmony_/">Metaharmony</a>.</p>
+
+			<div class="example">
+				<div class="example-render">
+					<div class="example-side"><h4>Traditional</h4><div id="ex2-trad" class="render-target"></div></div>
+					<div class="example-side"><h4>Diminished Staff</h4><div id="ex2-dim" class="render-target"></div></div>
+				</div>
+				<div id="ex2-audio" class="example-audio"></div>
+			</div>
+
+			<p>In a normal staff, the same pitched note can be in multiple places, but not on the diminished staff.</p>
+
+			<div class="example">
+				<div class="example-render">
+					<div class="example-side"><h4>Traditional</h4><div id="ex3-trad" class="render-target"></div></div>
+					<div class="example-side"><h4>Diminished Staff</h4><div id="ex3-dim" class="render-target"></div></div>
+				</div>
+				<div id="ex3-audio" class="example-audio"></div>
+			</div>
+
+			<p><span class="note-red">E</span>, <span class="note-red">G</span>, <span class="note-red">Bb</span>, and <span class="note-red">Db/C#</span> are <span class="note-red">red</span>. <span class="note-yellow">C</span>, <span class="note-yellow">Eb</span>, <span class="note-yellow">Gb/F#</span>, <span class="note-yellow">A</span> are <span class="note-yellow">yellow</span>. <span class="note-blue">B</span>, <span class="note-blue">D</span>, <span class="note-blue">F</span>, <span class="note-blue">Ab/G#</span> are <span class="note-blue">blue</span>. Keys are defined by what tonic chord feels like home, and each major or minor chord is composed of two colors. The <span class="note-red">E</span> major chord is <span class="note-red">E</span> <span class="note-blue">G#</span> <span class="note-blue">B</span>, which are <span class="note-red">red</span> and <span class="note-blue">blue</span> notes, so if <span class="note-red">E</span> major is the tonic home chord, the key is a <span class="note-purple">purple</span> key. This means the <span class="note-yellow">yellow</span> diminished is the complementary diminished (<span class="note-purple">purple</span> and <span class="note-yellow">yellow</span> are complementary colors), having strong harmonic pull back to the <span class="note-purple">purple</span> home chord. Barry Harris came up with "creation theory" which saw major, minor, and dominant chords as coming from two parent diminished chords.</p>
+
+			<p>This system makes it a lot easier to see the diminished relationships in functional harmony. In the example below, we're in the key of <span class="note-red">E</span>. You can get a sense of when there is more tension coming from the complementary <span class="note-yellow">yellow</span> diminished chord just by looking at how many <span class="note-yellow">yellow</span> notes there are.</p>
+
+			<div class="example">
+				<div class="example-render">
+					<div class="example-side"><h4>Traditional</h4><div id="ex4-trad" class="render-target"></div></div>
+					<div class="example-side"><h4>Diminished Staff</h4><div id="ex4-dim" class="render-target"></div></div>
+				</div>
+				<div id="ex4-audio" class="example-audio"></div>
+			</div>
+
+			<p>Here's a longer example in the key of <span class="note-yellow">A</span> minor, an <span class="note-orange">orange</span> key, where <span class="note-blue">blue</span> is the complementary diminished.</p>
+
+			<div class="example">
+				<div id="ex5-audio" class="example-audio example-audio-top"></div>
+				<div class="example-render">
+					<div class="example-side"><h4>Traditional</h4><div id="ex5-trad" class="render-target"></div></div>
+					<div class="example-side"><h4>Diminished Staff</h4><div id="ex5-dim" class="render-target"></div></div>
+				</div>
+			</div>
+
+		</section>
+
+		<!-- ===== EDITOR TAB ===== -->
+		<section id="editor-tab" class="hidden">
+			<p>Enter ABC notation below.</p>
+			<textarea id="editor-input">T:F&#252;r Elise
+M:3/8
+K:Am
+e^d|e^deB=dc|A2 z CEA|B2 z E^GB|c2 z Ee^d|
+%
+e^deB=dc|A2 z CEA|B2 z EcB|A2 z2</textarea>
+			<div class="controls-row">
+				<div class="view-toggle">
+					<button id="btn-traditional" onclick="setEditorView('traditional')">Traditional</button>
+					<button id="btn-diminished" onclick="setEditorView('diminished')">Diminished</button>
+					<button id="btn-side-by-side" class="active" onclick="setEditorView('side-by-side')">Side by Side</button>
+				</div>
+				<div class="view-toggle">
+					<span style="color:#666;font-size:14px">Bass:</span>
+					<button id="btn-bass-8" class="active" onclick="setEditorBassOctave(8)">-8</button>
+					<button id="btn-bass-16" onclick="setEditorBassOctave(16)">-16</button>
+				</div>
+				<div id="editor-audio"></div>
+			</div>
+			<div class="output">
+				<div id="editor-treble-container">
+					<h3>Traditional</h3>
+					<div id="editor-treble" class="render-target"></div>
+				</div>
+				<div id="editor-dim-container">
+					<h3>Diminished Staff</h3>
+					<div id="editor-dim" class="render-target"></div>
+				</div>
+			</div>
+		</section>
+	</main>
+
+	<script type="text/javascript">
+		// ===== Shared Utilities =====
+
+		function makeDimAbc(abc, bassOctave) {
+			var bassClef = "diminished-" + (bassOctave || 8);
+			return abc
+				.replace(/^(K:\s*\S+)/gm, "$1 clef=diminished")
+				.replace(/\[K:([^\]]+)\]/g, "[K:$1 clef=diminished]")
+				.replace(/^(V:\s*\S+\s+(?:clef=)?)bass/gm, "$1" + bassClef)
+				.replace(/^(V:\s*\S+\s+(?:clef=)?)(treble|alto|tenor)/gm, "$1diminished")
+				.replace(/\s+octave=-?\d+/g, "");
+		}
+
+		function findSvgForEvent(containerSelector, ev) {
+			if (ev && ev.elements) {
+				for (var i = 0; i < ev.elements.length; i++) {
+					for (var j = 0; j < ev.elements[i].length; j++) {
+						var el = ev.elements[i][j];
+						if (el) return el.closest("svg");
+					}
+				}
+			}
+			return document.querySelector(containerSelector + " svg");
+		}
+
+		function ensureCursor(svg) {
+			if (!svg) return null;
+			var cursor = svg.querySelector(".abcjs-cursor");
+			if (!cursor) {
+				cursor = document.createElementNS("http://www.w3.org/2000/svg", "line");
+				cursor.setAttribute("class", "abcjs-cursor");
+				cursor.setAttributeNS(null, "x1", 0);
+				cursor.setAttributeNS(null, "y1", 0);
+				cursor.setAttributeNS(null, "x2", 0);
+				cursor.setAttributeNS(null, "y2", 0);
+				svg.appendChild(cursor);
+			}
+			return cursor;
+		}
+
+		function updateCursor(containerSelector, ev) {
+			if (!ev || ev.left === null) return;
+			var allCursors = document.querySelectorAll(containerSelector + " svg .abcjs-cursor");
+			for (var i = 0; i < allCursors.length; i++) allCursors[i].remove();
+			var svg = findSvgForEvent(containerSelector, ev);
+			var cursor = ensureCursor(svg);
+			if (cursor) {
+				cursor.setAttribute("x1", ev.left - 2);
+				cursor.setAttribute("x2", ev.left - 2);
+				cursor.setAttribute("y1", ev.top);
+				cursor.setAttribute("y2", ev.top + ev.height);
+			}
+		}
+
+		function clearCursors(containerSelector) {
+			var allCursors = document.querySelectorAll(containerSelector + " svg .abcjs-cursor");
+			for (var i = 0; i < allCursors.length; i++) allCursors[i].remove();
+		}
+
+		function clearHighlights(containerSelector) {
+			var els = document.querySelectorAll(containerSelector + " svg .highlight");
+			for (var i = 0; i < els.length; i++) els[i].classList.remove("highlight");
+		}
+
+		function highlightElements(ev) {
+			if (!ev || !ev.elements) return;
+			for (var i = 0; i < ev.elements.length; i++) {
+				var note = ev.elements[i];
+				for (var j = 0; j < note.length; j++) note[j].classList.add("highlight");
+			}
+		}
+
+		// ===== Tab Switching =====
+
+		function switchTab(tab) {
+			document.querySelectorAll(".tab-btn").forEach(function(b) {
+				b.classList.toggle("active", b.getAttribute("data-tab") === tab);
+			});
+			document.getElementById("about-tab").classList.toggle("hidden", tab !== "about");
+			document.getElementById("editor-tab").classList.toggle("hidden", tab !== "editor");
+		}
+
+		// ===== About Tab Examples =====
+
+		function setupAboutExample(id, abc, bassOctave, staffwidth) {
+			var tradSel = "#" + id + "-trad";
+			var dimSel = "#" + id + "-dim";
+			var audioSel = "#" + id + "-audio";
+			var renderOpts = { responsive: "resize", add_classes: true };
+			if (staffwidth) renderOpts.staffwidth = staffwidth;
+
+			var tradObj = ABCJS.renderAbc(id + "-trad", abc, renderOpts)[0];
+
+			var dimObj = ABCJS.renderAbc(id + "-dim", makeDimAbc(abc, bassOctave), renderOpts)[0];
+
+			if (!ABCJS.synth.supportsAudio()) return;
+
+			var secondTimer = null;
+			var synthCtrl = null;
+
+			var cursorCtrl = {
+				beatSubdivisions: 2,
+				onReady: function(sc) {
+					synthCtrl = sc;
+					var origPause = sc.pause.bind(sc);
+					sc.pause = function() { origPause(); if (secondTimer) secondTimer.pause(); };
+					var origRestart = sc.restart.bind(sc);
+					sc.restart = function() { origRestart(); if (secondTimer) secondTimer.setProgress(0); };
+					var origSeek = sc.seek.bind(sc);
+					sc.seek = function(p, u) { origSeek(p, u); if (secondTimer) secondTimer.setProgress(p, u); };
+				},
+				onStart: function() {
+					if (secondTimer) secondTimer.start(synthCtrl ? (synthCtrl.percent || 0) : 0);
+				},
+				onEvent: function(ev) {
+					if (ev && ev.measureStart && ev.left === null) return;
+					clearHighlights(tradSel);
+					highlightElements(ev);
+					updateCursor(tradSel, ev);
+				},
+				onFinished: function() {
+					clearHighlights(tradSel);
+					clearHighlights(dimSel);
+					clearCursors(tradSel);
+					clearCursors(dimSel);
+					if (secondTimer) { secondTimer.reset(); secondTimer.stop(); }
+				}
+			};
+
+			var synth = new ABCJS.synth.SynthController();
+			synth.load(audioSel, cursorCtrl, {
+				displayPlay: true,
+				displayProgress: true,
+				displayWarp: true,
+				displayRestart: true
+			});
+
+			synth.setTune(tradObj, false).then(function() {
+				secondTimer = new ABCJS.TimingCallbacks(dimObj, {
+					beatSubdivisions: 2,
+					eventCallback: function(ev) {
+						if (ev) {
+							if (ev.measureStart && ev.left === null) return;
+							clearHighlights(dimSel);
+							highlightElements(ev);
+							updateCursor(dimSel, ev);
+						}
+					}
+				});
+			}).catch(function(err) {
+				console.warn("Audio setup error for " + id + ":", err);
+			});
+		}
+
+		// ===== Editor Tab =====
+
+		var editorView = "side-by-side";
+		var editorBassOctave = 8;
+		var editorSynthControl = null;
+		var editorSecondTimer = null;
+		var editorTrebleObj = null;
+		var editorDimObj = null;
+		var editorPrimaryContainer = "#editor-treble";
+		var editorSecondaryContainer = "#editor-dim";
+
+		var editorCursorControl = {
+			beatSubdivisions: 2,
+			onReady: function(sc) {
+				var origPause = sc.pause.bind(sc);
+				sc.pause = function() { origPause(); if (editorSecondTimer) editorSecondTimer.pause(); };
+				var origRestart = sc.restart.bind(sc);
+				sc.restart = function() { origRestart(); if (editorSecondTimer) editorSecondTimer.setProgress(0); };
+				var origSeek = sc.seek.bind(sc);
+				sc.seek = function(p, u) { origSeek(p, u); if (editorSecondTimer) editorSecondTimer.setProgress(p, u); };
+			},
+			onStart: function() {
+				if (editorSecondTimer) editorSecondTimer.start(editorSynthControl ? (editorSynthControl.percent || 0) : 0);
+			},
+			onEvent: function(ev) {
+				if (ev && ev.measureStart && ev.left === null) return;
+				clearHighlights(editorPrimaryContainer);
+				highlightElements(ev);
+				updateCursor(editorPrimaryContainer, ev);
+			},
+			onFinished: function() {
+				clearHighlights(editorPrimaryContainer);
+				if (editorSecondaryContainer) clearHighlights(editorSecondaryContainer);
+				clearCursors(editorPrimaryContainer);
+				if (editorSecondaryContainer) clearCursors(editorSecondaryContainer);
+				if (editorSecondTimer) { editorSecondTimer.reset(); editorSecondTimer.stop(); }
+			}
+		};
+
+		function setEditorView(view) {
+			editorView = view;
+			document.getElementById("btn-traditional").classList.toggle("active", view === "traditional");
+			document.getElementById("btn-diminished").classList.toggle("active", view === "diminished");
+			document.getElementById("btn-side-by-side").classList.toggle("active", view === "side-by-side");
+
+			var trebleEl = document.getElementById("editor-treble-container");
+			var dimEl = document.getElementById("editor-dim-container");
+			trebleEl.classList.remove("hidden");
+			dimEl.classList.remove("hidden");
+			if (view === "traditional") dimEl.classList.add("hidden");
+			else if (view === "diminished") trebleEl.classList.add("hidden");
+
+			renderEditor();
+		}
+
+		function setEditorBassOctave(oct) {
+			editorBassOctave = oct;
+			document.getElementById("btn-bass-8").classList.toggle("active", oct === 8);
+			document.getElementById("btn-bass-16").classList.toggle("active", oct === 16);
+			renderEditor();
+		}
+
+		function renderEditor() {
+			if (editorSynthControl && editorSynthControl.isStarted) {
+				editorSynthControl.pause();
+			}
+
+			var abc = document.getElementById("editor-input").value;
+			editorTrebleObj = null;
+			editorDimObj = null;
+
+			if (editorView !== "diminished") {
+				editorTrebleObj = ABCJS.renderAbc("editor-treble", abc, {
+					responsive: "resize",
+					staffwidth: 300,
+					add_classes: true
+				})[0];
+			}
+			if (editorView !== "traditional") {
+				editorDimObj = ABCJS.renderAbc("editor-dim", makeDimAbc(abc, editorBassOctave), {
+					responsive: "resize",
+					staffwidth: 300,
+					add_classes: true
+				})[0];
+			}
+
+			setupEditorAudio();
+		}
+
+		function setupEditorAudio() {
+			if (!ABCJS.synth.supportsAudio()) {
+				document.getElementById("editor-audio").innerHTML = "<div>Audio not supported in this browser.</div>";
+				return;
+			}
+
+			var primaryObj, secondaryObj;
+			if (editorView === "diminished") {
+				primaryObj = editorDimObj;
+				secondaryObj = null;
+				editorPrimaryContainer = "#editor-dim";
+				editorSecondaryContainer = null;
+			} else if (editorView === "traditional") {
+				primaryObj = editorTrebleObj;
+				secondaryObj = null;
+				editorPrimaryContainer = "#editor-treble";
+				editorSecondaryContainer = null;
+			} else {
+				primaryObj = editorTrebleObj;
+				secondaryObj = editorDimObj;
+				editorPrimaryContainer = "#editor-treble";
+				editorSecondaryContainer = "#editor-dim";
+			}
+
+			if (!primaryObj) return;
+
+			// Clean up previous secondary timer
+			if (editorSecondTimer) { editorSecondTimer.stop(); editorSecondTimer = null; }
+
+			// Recreate SynthController on every render so MIDI always reflects current ABC
+			document.getElementById("editor-audio").innerHTML = "";
+			editorSynthControl = new ABCJS.synth.SynthController();
+			editorSynthControl.load("#editor-audio", editorCursorControl, {
+				displayPlay: true,
+				displayProgress: true,
+				displayWarp: true,
+				displayRestart: true
+			});
+
+			editorSynthControl.setTune(primaryObj, false).then(function() {
+				if (secondaryObj) {
+					editorSecondTimer = new ABCJS.TimingCallbacks(secondaryObj, {
+						beatSubdivisions: 2,
+						eventCallback: function(ev) {
+							if (ev) {
+								if (ev.measureStart && ev.left === null) return;
+								clearHighlights(editorSecondaryContainer);
+								highlightElements(ev);
+								updateCursor(editorSecondaryContainer, ev);
+							}
+						}
+					});
+				}
+			}).catch(function(err) {
+				console.warn("Editor audio setup error:", err);
+			});
+		}
+
+		// ===== Initialization =====
+
+		// About tab examples
+		var aboutExamples = [
+			{
+				id: "ex1",
+				abc: "K: C\nL: 1/4\nD d d'",
+				bassOctave: 8,
+				staffwidth: 100
+			},
+			{
+				id: "ex1b",
+				abc: "L: 1/4\nK: C\nA _B =B c ^c d _e =e f ^f g ^g a",
+				bassOctave: 8,
+				staffwidth: 250
+			},
+			{
+				id: "ex2",
+				abc: "L: 1/4\nK: C\nD F _A B | _D E G _B | _E _G A c",
+				bassOctave: 8,
+				staffwidth: 200
+			},
+			{
+				id: "ex3",
+				abc: "L: 1/4\nK: C\n_d ^c ^^B | _G ^F ^^E | _c B ^^A",
+				bassOctave: 8,
+				staffwidth: 200
+			},
+			{
+				id: "ex4",
+				abc: "L: 1/4\nQ:1/4=80\nK: E\nV: 1 bass\n[E,B,g,]2[E,B,g,]2|[E,c,a,]2[E,c,a,]2|\n[D,B,F]2[D,^B,F]2|[E,B,g,]2[E,=c,a,]2|!p![E,B,d,g,]4",
+				bassOctave: 8,
+				staffwidth: 200
+			},
+			{
+				id: "ex5",
+				abc: "T:F\u00fcr Elise\nC:Ludwig van Beethoven\nV:1\nV:2 bass\nM:3/8\nL:1/16\nQ:3/8=40\nK:Am\nV:1\nB2 z EcB|A2 z2 z2|[E6G6_B6^c6]|[F4A4d4][^ce][df]|[^G4d4f4][G2d2f2]|[A6c6e6]|\nV:2\nE,,E,^G, z z2|A,,A,,A,,A,,A,,A,,|A,,A,,A,,A,,A,,A,,|A,,A,,A,,A,,A,,A,,|A,,A,,A,,A,,A,,A,,|A,,A,,A,,A,,A,,A,,|\n%\nV:1\n[F4d4][Ec][DB]|[C4^F4A4][C2A2][C2A2][E2c2][D2B2]|[C6A6]|[E6G6_B6^c6]|[F4A4d4][^ce][df]|\nV:2\n[D,,A,,][D,,A,,][D,,A,,][D,,A,,][D,,A,,][D,,A,,]|[^D,,A,,][D,,A,,][D,,A,,][D,,A,,][D,,A,,][D,,A,,]|[E,,A,,][E,,A,,][E,,A,,][E,,A,,][E,,^G,,][E,,G,,]|[A,,,A,,]A,,A,,A,,A,,A,,|A,,A,,A,,A,,A,,A,,|A,,A,,A,,A,,A,,A,,|\n%\nV:1\n[d4f4][d2f2]|[d6f6]|[G4_e4][Fd][_Ec]|[D4F4_B4][D2F2A2]|[D4F4^G4][D2F2G2]|[C2E2A2] z2 z2|\nV:2\nA,,A,,A,,A,,A,,A,,|_B,,B,,B,,B,,B,,B,,|_B,,B,,B,,B,,B,,B,,|_B,,B,,B,,B,,B,,B,,|=B,,B,,B,,B,,B,,B,,|C,2 z2 z2|\n%\nV:1\n[E2B2] z2 z2|(3A,CE (3Ace (3dcB|(3Ace (3ac'e' (3d'c'b|(3Ace (3ac'e' (3d'c'b|\nV:2\n[E,2^G,2] z2 z2|A,,,2 z2 [A,2C2E2]|[A,2C2E2] z2 [A,2C2E2]|[A,2C2E2] z2 [A,2C2E2]|\n%\nV:1\n(3_ba_a (3g_gf (3e_ed|(3_d'c'b (3_ba_b (3g_gf|e^deB=dc|A2 z CEA|\nV:2\n[A,2C2E2] z2 z2|z6|z6|A,,E,A, z z2|\n%\nV:1\nB2 z E^GB|c2 z Ee^d|e^deB=dc|!>(!A2 z CEA|B2 z EcB|[c,a,]12!>)!|\nV:2\nE,,E,^G, z z2|A,,E,A, z z2|z6|A,,E,A, z z2|E,,E,^G, z z2|[A,,A,E,]12|",
+				bassOctave: 16
+			}
+		];
+
+		aboutExamples.forEach(function(ex) {
+			setupAboutExample(ex.id, ex.abc, ex.bassOctave, ex.staffwidth);
+		});
+
+		// Editor tab
+		var editorRenderTimeout;
+		document.getElementById("editor-input").addEventListener("input", function() {
+			clearTimeout(editorRenderTimeout);
+			editorRenderTimeout = setTimeout(renderEditor, 300);
+		});
+		renderEditor();
+	</script>
+</body>
+</html>
