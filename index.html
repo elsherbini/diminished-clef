@@ -238,6 +238,12 @@ V:1 treble
 					<button id="btn-bass-8" class="active" onclick="setEditorBassOctave(8)">-8</button>
 					<button id="btn-bass-16" onclick="setEditorBassOctave(16)">-16</button>
 				</div>
+				<div class="view-toggle">
+					<span style="color:#666;font-size:14px">Colors:</span>
+					<button id="btn-color-metaharmony" class="active" onclick="setEditorColors('metaharmony')">Metaharmony</button>
+					<button id="btn-color-bw" onclick="setEditorColors('bw')">B&amp;W</button>
+					<button id="btn-color-elements" onclick="setEditorColors('elements')">Elements</button>
+				</div>
 				<div id="editor-audio"></div>
 			</div>
 			<div class="output">
@@ -411,6 +417,7 @@ V:1 treble
 
 		var editorView = "side-by-side";
 		var editorBassOctave = 8;
+		var editorColors = "metaharmony";
 		var editorSynthControl = null;
 		var editorSecondTimer = null;
 		var editorTrebleObj = null;
@@ -469,6 +476,14 @@ V:1 treble
 			renderEditor();
 		}
 
+		function setEditorColors(mode) {
+			editorColors = mode;
+			document.getElementById("btn-color-metaharmony").classList.toggle("active", mode === "metaharmony");
+			document.getElementById("btn-color-bw").classList.toggle("active", mode === "bw");
+			document.getElementById("btn-color-elements").classList.toggle("active", mode === "elements");
+			renderEditor();
+		}
+
 		function renderEditor() {
 			if (editorSynthControl && editorSynthControl.isStarted) {
 				editorSynthControl.pause();
@@ -482,14 +497,16 @@ V:1 treble
 				editorTrebleObj = ABCJS.renderAbc("editor-treble", abc, {
 					responsive: "resize",
 					staffwidth: 300,
-					add_classes: true
+					add_classes: true,
+					diminishedColors: editorColors
 				})[0];
 			}
 			if (editorView !== "traditional") {
 				editorDimObj = ABCJS.renderAbc("editor-dim", makeDimAbc(abc, editorBassOctave), {
 					responsive: "resize",
 					staffwidth: 300,
-					add_classes: true
+					add_classes: true,
+					diminishedColors: editorColors
 				})[0];
 			}
 

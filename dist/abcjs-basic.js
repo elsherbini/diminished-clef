@@ -18398,6 +18398,23 @@ function getDiminishedGroup(pitchElem) {
   if (bbDim.indexOf(semitone) >= 0) return 'bbDim';
   return 'bDim';
 }
+var diminishedColorMap = {
+  metaharmony: {
+    cDim: 'rgb(215 204 59)',
+    bbDim: 'rgb(216 37 84)',
+    bDim: 'rgb(77 162 210)'
+  },
+  elements: {
+    cDim: 'rgb(59 179 75)',
+    bbDim: 'rgb(77 162 210)',
+    bDim: 'rgb(216 37 84)'
+  },
+  bw: {
+    cDim: null,
+    bbDim: null,
+    bDim: null
+  }
+};
 var getDuration = function getDuration(elem) {
   var d = 0;
   if (elem.duration) {
@@ -18527,6 +18544,7 @@ var AbstractEngraver = function AbstractEngraver(getTextSize, tuneNumber, option
   this.jazzchords = !!options.jazzchords;
   this.accentAbove = !!options.accentAbove;
   this.germanAlphabet = !!options.germanAlphabet;
+  this.diminishedColors = options.diminishedColors || 'metaharmony';
   this.reset();
 };
 AbstractEngraver.prototype.reset = function () {
@@ -18998,16 +19016,17 @@ AbstractEngraver.prototype.addGraceNotes = function (elem, voice, abselem, noteh
     var graceC = "noteheads.quarter";
     if (voice.isDiminished) {
       var graceDimGroup = getDiminishedGroup(elem.gracenotes[i]);
+      var graceColors = diminishedColorMap[this.diminishedColors] || diminishedColorMap.metaharmony;
       if (graceDimGroup === 'cDim') {
         graceC = chartable.diminishedUp[2];
-        elem.gracenotes[i].diminishedColor = 'rgb(215 204 59)';
+        if (graceColors.cDim) elem.gracenotes[i].diminishedColor = graceColors.cDim;
       } else if (graceDimGroup === 'bbDim') {
         graceC = chartable.diminishedDown[2];
-        elem.gracenotes[i].diminishedColor = 'rgb(216 37 84)';
+        if (graceColors.bbDim) elem.gracenotes[i].diminishedColor = graceColors.bbDim;
         elem.gracenotes[i].diminishedPitchOffset = 0.07;
       } else {
         graceC = chartable.note[2];
-        elem.gracenotes[i].diminishedColor = 'rgb(77 162 210)';
+        if (graceColors.bDim) elem.gracenotes[i].diminishedColor = graceColors.bDim;
         elem.gracenotes[i].diminishedScale = 0.74;
       }
     }
@@ -19230,16 +19249,17 @@ AbstractEngraver.prototype.addNoteToAbcElement = function (abselem, elem, dot, s
     var c;
     if (voice.isDiminished) {
       var dimGroup = getDiminishedGroup(elem.pitches[p]);
+      var noteColors = diminishedColorMap[this.diminishedColors] || diminishedColorMap.metaharmony;
       if (dimGroup === 'cDim') {
         if (zeroDuration) c = chartable.diminishedUp.nostem;else c = chartable.diminishedUp[-durlog];
-        elem.pitches[p].diminishedColor = 'rgb(215 204 59)';
+        if (noteColors.cDim) elem.pitches[p].diminishedColor = noteColors.cDim;
       } else if (dimGroup === 'bbDim') {
         if (zeroDuration) c = chartable.diminishedDown.nostem;else c = chartable.diminishedDown[-durlog];
-        elem.pitches[p].diminishedColor = 'rgb(216 37 84)';
+        if (noteColors.bbDim) elem.pitches[p].diminishedColor = noteColors.bbDim;
         elem.pitches[p].diminishedPitchOffset = 0.07;
       } else {
         if (zeroDuration) c = chartable.note.nostem;else c = chartable.note[-durlog];
-        elem.pitches[p].diminishedColor = 'rgb(77 162 210)';
+        if (noteColors.bDim) elem.pitches[p].diminishedColor = noteColors.bDim;
         elem.pitches[p].diminishedScale = 0.74;
       }
     } else if (elem.pitches[p].style) {
@@ -25524,6 +25544,7 @@ var EngraverController = function EngraverController(paper, params) {
   if (params.jazzchords) this.jazzchords = params.jazzchords;
   if (params.accentAbove) this.accentAbove = params.accentAbove;
   if (params.germanAlphabet) this.germanAlphabet = params.germanAlphabet;
+  this.diminishedColors = params.diminishedColors || 'metaharmony';
   if (params.lineThickness) this.lineThickness = params.lineThickness;
   if (params.chordGrid) this.chordGrid = params.chordGrid;
   this.renderer.controller = this; // TODO-GD needed for highlighting
@@ -25637,7 +25658,8 @@ EngraverController.prototype.setupTune = function (abcTune, tuneNumber) {
     jazzchords: this.jazzchords,
     timeBasedLayout: this.timeBasedLayout,
     accentAbove: this.accentAbove,
-    germanAlphabet: this.germanAlphabet
+    germanAlphabet: this.germanAlphabet,
+    diminishedColors: this.diminishedColors
   });
   this.engraver.setStemHeight(this.renderer.spacing.stemHeight);
   this.engraver.measureLength = abcTune.getMeterFraction().num / abcTune.getMeterFraction().den;
