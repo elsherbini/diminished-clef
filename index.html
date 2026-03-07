@@ -211,12 +211,22 @@
 		<!-- ===== EDITOR TAB ===== -->
 		<section id="editor-tab" class="hidden">
 			<p>Enter ABC notation below.</p>
-			<textarea id="editor-input">T:F&#252;r Elise
-M:3/8
-K:Am
-e^d|e^deB=dc|A2 z CEA|B2 z E^GB|c2 z Ee^d|
+			<textarea id="editor-input">L:1/4
+M:4/4
+Q:1/4=110
+K:C
+%%MIDI program 4
+V:1 treble
+B,(3B,/F/_A/ d/e/ d | d,(3d,/_A/B/ f/e/ f|c,(3c,/G/A/ e/e/ e||c,G/A/e/e/e|
 %
-e^deB=dc|A2 z CEA|B2 z EcB|A2 z2</textarea>
+V:1 treble
+|d,(3d,/_A/B/ f/e/ f | f,(3f,/B/d/ _a/e/ _a|e,(3e,/A/c/ g/e/ g|e,A/c/g/e/g|
+%
+V:1 treble
+|f,(3f,/B/d/ _a/e/ _a|_a,d/f/b/e/b|Gc/e/a/e/a|G(3G/c/e/ b/e/ b|
+%
+V:1 treble
+|_a,-(3_a,/d/f/ b/e/ b|b,(3b,/f/_a/ d'/e/ d'|A(3A/e/g/ c'/e/ c'|Ae/g/c'/e/c'|</textarea>
 			<div class="controls-row">
 				<div class="view-toggle">
 					<button id="btn-traditional" onclick="setEditorView('traditional')">Traditional</button>
