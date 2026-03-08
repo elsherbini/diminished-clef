@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<title>Diminished Staff Editor</title>
+	<script src="abcjs/dist/abcjs-basic.js" type="text/javascript"></script>
+	<link rel="stylesheet" type="text/css" href="abcjs/abcjs-audio.css">
+	<style>
+		body {
+			font-family: sans-serif;
+			max-width: 1200px;
+			margin: 0 auto;
+			padding: 20px;
+		}
+		h1 { margin-bottom: 5px; }
+		textarea {
+			width: 100%;
+			height: 150px;
+			font-family: monospace;
+			font-size: 14px;
+			padding: 10px;
+			box-sizing: border-box;
+			margin-bottom: 10px;
+		}
+		.controls-row {
+			margin-bottom: 15px;
+			display: flex;
+			gap: 20px;
+			align-items: center;
+			flex-wrap: wrap;
+		}
+		.view-toggle {
+			display: flex;
+			gap: 5px;
+		}
+		.view-toggle button {
+			padding: 6px 16px;
+			border: 1px solid #ccc;
+			background: #f5f5f5;
+			cursor: pointer;
+			font-size: 14px;
+		}
+		.view-toggle button.active {
+			background: #333;
+			color: #fff;
+			border-color: #333;
+		}
+		#audio {
+			flex: 1;
+			min-width: 250px;
+		}
+		.output {
+			display: flex;
+			gap: 40px;
+		}
+		.output > div {
+			flex: 1;
+		}
+		.output > div.hidden {
+			display: none;
+		}
+		h3 { margin: 0 0 5px 0; color: #666; }
+		.render-target { border: 1px solid #ddd; padding: 10px; min-height: 150px; }
+		.abcjs-cursor {
+			stroke: red;
+			stroke-width: 2;
+			opacity: 0.7;
+		}
+		.highlight {
+			fill: #0a9ecc;
+		}
+	</style>
+</head>
+<body>
+	<h1>Diminished Staff Editor</h1>
+	<p>Enter ABC notation below.</p>
+	<textarea id="abc-input">T:F&#252;r Elise
+M:3/8
+K:Am
+e^d|e^deB=dc|A2 z CEA|B2 z E^GB|c2 z Ee^d|
+%
+e^deB=dc|A2 z CEA|B2 z EcB|A2 z2</textarea>
+	<div class="controls-row">
+		<div class="view-toggle">
+			<button id="btn-traditional" onclick="setView('traditional')">Traditional</button>
+			<button id="btn-diminished" onclick="setView('diminished')">Diminished</button>
+			<button id="btn-side-by-side" class="active" onclick="setView('side-by-side')">Side by Side</button>
+		</div>
+		<div class="view-toggle">
+			<span style="color:#666;font-size:14px">Bass:</span>
+			<button id="btn-bass-8" class="active" onclick="setBassOctave(8)">-8</button>
+			<button id="btn-bass-16" onclick="setBassOctave(16)">-16</button>
+		</div>
+		<div id="audio"></div>
+	</div>
+	<div class="output">
+		<div id="treble-container">
+			<h3>Traditional</h3>
+			<div id="treble" class="render-target"></div>
+		</div>
+		<div id="dim-container">
+			<h3>Diminished Staff</h3>
+			<div id="dim" class="render-target"></div>
+		</div>
+	</div>
+	<script type="text/javascript">
+		var input = document.getElementById("abc-input");
+		var currentView = "side-by-side";
+		var bassOctave = 8;
+		var synthControl = null;
+		var secondTimer = null;
+		var trebleVisualObj = null;
+		var dimVisualObj = null;
+
+		// Find the SVG that contains the event's elements
+		function findSvgForEvent(containerSelector, ev) {
+			if (ev && ev.elements) {
+				for (var i = 0; i < ev.elements.length; i++) {
+					for (var j = 0; j < ev.elements[i].length; j++) {
+						var el = ev.elements[i][j];
+						if (el) return el.closest("svg");
+					}
+				}
+			}
+			// Fallback: first SVG in container
+			return document.querySelector(containerSelector + " svg");
+		}
+
+		function ensureCursor(svg) {
+			if (!svg) return null;
+			var cursor = svg.querySelector(".abcjs-cursor");
+			if (!cursor) {
+				cursor = document.createElementNS("http://www.w3.org/2000/svg", "line");
+				cursor.setAttribute("class", "abcjs-cursor");
+				cursor.setAttributeNS(null, "x1", 0);
+				cursor.setAttributeNS(null, "y1", 0);
+				cursor.setAttributeNS(null, "x2", 0);
+				cursor.setAttributeNS(null, "y2", 0);
+				svg.appendChild(cursor);
+			}
+			return cursor;
+		}
+
+		function updateCursor(containerSelector, ev) {
+			if (!ev || ev.left === null) return;
+			// Remove cursor from all SVGs in this container
+			var allCursors = document.querySelectorAll(containerSelector + " svg .abcjs-cursor");
+			for (var i = 0; i < allCursors.length; i++)
+				allCursors[i].remove();
+			// Add cursor to the correct SVG
+			var svg = findSvgForEvent(containerSelector, ev);
+			var cursor = ensureCursor(svg);
+			if (cursor) {
+				cursor.setAttribute("x1", ev.left - 2);
+				cursor.setAttribute("x2", ev.left - 2);
+				cursor.setAttribute("y1", ev.top);
+				cursor.setAttribute("y2", ev.top + ev.height);
+			}
+		}
+
+		function clearCursors(containerSelector) {
+			var allCursors = document.querySelectorAll(containerSelector + " svg .abcjs-cursor");
+			for (var i = 0; i < allCursors.length; i++)
+				allCursors[i].remove();
+		}
+
+		function clearHighlights(containerSelector) {
+			var els = document.querySelectorAll(containerSelector + " svg .highlight");
+			for (var i = 0; i < els.length; i++)
+				els[i].classList.remove("highlight");
+		}
+
+		function highlightElements(ev) {
+			if (!ev || !ev.elements) return;
+			for (var i = 0; i < ev.elements.length; i++) {
+				var note = ev.elements[i];
+				for (var j = 0; j < note.length; j++)
+					note[j].classList.add("highlight");
+			}
+		}
+
+		// Primary cursor control (for whichever visualObj drives the SynthController)
+		var primaryContainer = "#treble";
+		var secondaryContainer = "#dim";
+
+		var cursorControl = {
+			beatSubdivisions: 2,
+			onReady: function(sc) {
+				// Wrap pause/restart/seek to also control secondTimer
+				var origPause = sc.pause.bind(sc);
+				sc.pause = function() {
+					origPause();
+					if (secondTimer) secondTimer.pause();
+				};
+				var origRestart = sc.restart.bind(sc);
+				sc.restart = function() {
+					origRestart();
+					if (secondTimer) secondTimer.setProgress(0);
+				};
+				var origSeek = sc.seek.bind(sc);
+				sc.seek = function(percent, units) {
+					origSeek(percent, units);
+					if (secondTimer) secondTimer.setProgress(percent, units);
+				};
+			},
+			onStart: function() {
+				if (secondTimer) secondTimer.start(synthControl.percent || 0);
+			},
+			onEvent: function(ev) {
+				if (ev && ev.measureStart && ev.left === null) return;
+				clearHighlights(primaryContainer);
+				highlightElements(ev);
+				updateCursor(primaryContainer, ev);
+			},
+			onFinished: function() {
+				clearHighlights(primaryContainer);
+				clearHighlights(secondaryContainer);
+				clearCursors(primaryContainer);
+				if (secondaryContainer) clearCursors(secondaryContainer);
+				if (secondTimer) {
+					secondTimer.reset();
+					secondTimer.stop();
+				}
+			}
+		};
+
+		function setView(view) {
+			currentView = view;
+			document.querySelectorAll(".view-toggle button").forEach(function(b) {
+				b.classList.remove("active");
+			});
+			document.getElementById("btn-" + view).classList.add("active");
+
+			var trebleEl = document.getElementById("treble-container");
+			var dimEl = document.getElementById("dim-container");
+
+			trebleEl.classList.remove("hidden");
+			dimEl.classList.remove("hidden");
+
+			if (view === "traditional") {
+				dimEl.classList.add("hidden");
+			} else if (view === "diminished") {
+				trebleEl.classList.add("hidden");
+			}
+
+			render();
+		}
+
+		function setBassOctave(oct) {
+			bassOctave = oct;
+			document.getElementById("btn-bass-8").classList.toggle("active", oct === 8);
+			document.getElementById("btn-bass-16").classList.toggle("active", oct === 16);
+			render();
+		}
+
+		function makeDimAbc(abc) {
+			var bassClef = "diminished-" + bassOctave;
+			return abc
+				// Add clef=diminished to all K: lines (including inline [K:...])
+				.replace(/^(K:\s*\S+)/gm, "$1 clef=diminished")
+				.replace(/\[K:([^\]]+)\]/g, "[K:$1 clef=diminished]")
+				// Replace clef names in V: lines (handles "V:1 bass", "V: 1 clef=bass", etc.)
+				.replace(/^(V:\s*\S+\s+(?:clef=)?)bass/gm, "$1" + bassClef)
+				.replace(/^(V:\s*\S+\s+(?:clef=)?)(treble|alto|tenor)/gm, "$1diminished")
+				// Strip octave= parameters (diminished clef uses absolute pitch)
+				.replace(/\s+octave=-?\d+/g, "");
+		}
+
+		function render() {
+			// Stop any current playback
+			if (synthControl && synthControl.isStarted) {
+				synthControl.pause();
+			}
+
+			var abc = input.value;
+			trebleVisualObj = null;
+			dimVisualObj = null;
+
+			if (currentView !== "diminished") {
+				trebleVisualObj = ABCJS.renderAbc("treble", abc, {
+					responsive: "resize",
+					staffwidth: 300,
+					add_classes: true
+				})[0];
+			}
+			if (currentView !== "traditional") {
+				dimVisualObj = ABCJS.renderAbc("dim", makeDimAbc(abc), {
+					responsive: "resize",
+					staffwidth: 300,
+					add_classes: true
+				})[0];
+			}
+
+			setupAudio();
+		}
+
+		function setupAudio() {
+			if (!ABCJS.synth.supportsAudio()) {
+				document.getElementById("audio").innerHTML = "<div>Audio not supported in this browser.</div>";
+				return;
+			}
+
+			// Determine primary (audio source) and secondary (cursor-only) visualObjs
+			var primaryObj, secondaryObj;
+			if (currentView === "diminished") {
+				primaryObj = dimVisualObj;
+				secondaryObj = null;
+				primaryContainer = "#dim";
+				secondaryContainer = null;
+			} else if (currentView === "traditional") {
+				primaryObj = trebleVisualObj;
+				secondaryObj = null;
+				primaryContainer = "#treble";
+				secondaryContainer = null;
+			} else {
+				// Side by side: traditional drives audio, diminished gets secondary cursor
+				primaryObj = trebleVisualObj;
+				secondaryObj = dimVisualObj;
+				primaryContainer = "#treble";
+				secondaryContainer = "#dim";
+			}
+
+			if (!primaryObj) return;
+
+			if (!synthControl) {
+				synthControl = new ABCJS.synth.SynthController();
+				synthControl.load("#audio", cursorControl, {
+					displayPlay: true,
+					displayProgress: true,
+					displayWarp: true,
+					displayRestart: true
+				});
+			}
+
+			// Clean up previous secondary timer
+			if (secondTimer) {
+				secondTimer.stop();
+				secondTimer = null;
+			}
+
+			synthControl.setTune(primaryObj, false).then(function() {
+				// Set up secondary timer for the other rendering
+				if (secondaryObj) {
+					secondTimer = new ABCJS.TimingCallbacks(secondaryObj, {
+						beatSubdivisions: 2,
+						eventCallback: function(ev) {
+							if (ev) {
+								if (ev.measureStart && ev.left === null) return;
+								clearHighlights(secondaryContainer);
+								highlightElements(ev);
+								updateCursor(secondaryContainer, ev);
+							}
+						}
+					});
+				}
+			}).catch(function(err) {
+				console.warn("Audio setup error:", err);
+			});
+		}
+
+		var renderTimeout;
+		input.addEventListener("input", function() {
+			clearTimeout(renderTimeout);
+			renderTimeout = setTimeout(render, 300);
+		});
+		render();
+	</script>
+</body>
+</html>
