@@ -106,6 +106,17 @@
 		.output > div { flex: 1; }
 		.output > div.hidden { display: none; }
 		.output h3 { margin: 0 0 5px; color: #666; }
+		.download-svg-btn {
+			padding: 2px 10px;
+			border: 1px solid #ccc;
+			background: #f5f5f5;
+			cursor: pointer;
+			font-size: 12px;
+			font-weight: normal;
+			margin-left: 8px;
+			vertical-align: middle;
+		}
+		.download-svg-btn:hover { background: #e0e0e0; }
 
 		/* Note colors */
 		.note-blue { color: #2255cc; font-weight: 600; }
@@ -244,15 +255,21 @@ V:1 treble
 					<button id="btn-color-bw" onclick="setEditorColors('bw')">B&amp;W</button>
 					<button id="btn-color-elements" onclick="setEditorColors('elements')">Elements</button>
 				</div>
+				<div class="view-toggle">
+					<span style="color:#666;font-size:14px">Tab:</span>
+					<button id="btn-tab-off" class="active" onclick="setEditorTab('off')">Off</button>
+					<button id="btn-tab-minorthirds" onclick="setEditorTab('minorthirds')">Minor 3rds</button>
+					<button id="btn-tab-guitar" onclick="setEditorTab('guitar')">Guitar</button>
+				</div>
 				<div id="editor-audio"></div>
 			</div>
 			<div class="output">
 				<div id="editor-treble-container">
-					<h3>Traditional</h3>
+					<h3>Traditional <button class="download-svg-btn" onclick="downloadSvg('editor-treble', 'traditional.svg')">Download SVG</button></h3>
 					<div id="editor-treble" class="render-target"></div>
 				</div>
 				<div id="editor-dim-container">
-					<h3>Diminished Staff</h3>
+					<h3>Diminished Staff <button class="download-svg-btn" onclick="downloadSvg('editor-dim', 'diminished.svg')">Download SVG</button></h3>
 					<div id="editor-dim" class="render-target"></div>
 				</div>
 			</div>
@@ -261,6 +278,43 @@ V:1 treble
 
 	<script type="text/javascript">
 		// ===== Shared Utilities =====
+
+		function downloadSvg(containerId, filename) {
+			var container = document.getElementById(containerId);
+			var svg = container.querySelector("svg");
+			if (!svg) return;
+			var clone = svg.cloneNode(true);
+			var origElems = svg.querySelectorAll("*");
+			var cloneElems = clone.querySelectorAll("*");
+			for (var i = 0; i < origElems.length; i++) {
+				var computed = window.getComputedStyle(origElems[i]);
+				var fill = computed.fill;
+				var stroke = computed.stroke;
+				if (fill && fill !== "none") cloneElems[i].setAttribute("fill", fill);
+				if (stroke && stroke !== "none") cloneElems[i].setAttribute("stroke", stroke);
+				var style = origElems[i].getAttribute("style") || "";
+				var scaleMatch = style.match(/transform:\s*scale\(([^,]+),([^)]+)\)/);
+				var originMatch = style.match(/transform-origin:\s*([^\s]+)px\s+([^\s;]+)px/);
+				if (scaleMatch && originMatch) {
+					var sx = parseFloat(scaleMatch[1]);
+					var sy = parseFloat(scaleMatch[2]);
+					var ox = parseFloat(originMatch[1]);
+					var oy = parseFloat(originMatch[2]);
+					cloneElems[i].setAttribute("transform",
+						"translate(" + ox + "," + oy + ") scale(" + sx + "," + sy + ") translate(" + (-ox) + "," + (-oy) + ")");
+					cloneElems[i].removeAttribute("style");
+				}
+			}
+			var serializer = new XMLSerializer();
+			var svgStr = serializer.serializeToString(clone);
+			var blob = new Blob([svgStr], { type: "image/svg+xml" });
+			var url = URL.createObjectURL(blob);
+			var a = document.createElement("a");
+			a.href = url;
+			a.download = filename;
+			a.click();
+			URL.revokeObjectURL(url);
+		}
 
 		function makeDimAbc(abc, bassOctave) {
 			var bassClef = "diminished-" + (bassOctave || 8);
@@ -418,6 +472,7 @@ V:1 treble
 		var editorView = "side-by-side";
 		var editorBassOctave = 8;
 		var editorColors = "metaharmony";
+		var editorTab = "off";
 		var editorSynthControl = null;
 		var editorSecondTimer = null;
 		var editorTrebleObj = null;
@@ -484,6 +539,14 @@ V:1 treble
 			renderEditor();
 		}
 
+		function setEditorTab(mode) {
+			editorTab = mode;
+			document.getElementById("btn-tab-off").classList.toggle("active", mode === "off");
+			document.getElementById("btn-tab-minorthirds").classList.toggle("active", mode === "minorthirds");
+			document.getElementById("btn-tab-guitar").classList.toggle("active", mode === "guitar");
+			renderEditor();
+		}
+
 		function renderEditor() {
 			if (editorSynthControl && editorSynthControl.isStarted) {
 				editorSynthControl.pause();
@@ -493,12 +556,15 @@ V:1 treble
 			editorTrebleObj = null;
 			editorDimObj = null;
 
+			var tabOption = editorTab !== "off" ? [{ instrument: editorTab }] : undefined;
+
 			if (editorView !== "diminished") {
 				editorTrebleObj = ABCJS.renderAbc("editor-treble", abc, {
 					responsive: "resize",
 					staffwidth: 300,
 					add_classes: true,
-					diminishedColors: editorColors
+					diminishedColors: editorColors,
+					tablature: tabOption
 				})[0];
 			}
 			if (editorView !== "traditional") {
@@ -506,7 +572,8 @@ V:1 treble
 					responsive: "resize",
 					staffwidth: 300,
 					add_classes: true,
-					diminishedColors: editorColors
+					diminishedColors: editorColors,
+					tablature: tabOption
 				})[0];
 			}
 

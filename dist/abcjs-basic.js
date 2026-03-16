@@ -6995,6 +6995,7 @@ MusicParser.prototype.parseMusic = function (line) {
               if (el.dottedSlur !== undefined) el.pitches[0].dottedSlur = true;
               if (core.startTie !== undefined) el.pitches[0].startTie = core.startTie;
               if (el.startTie !== undefined) el.pitches[0].startTie = el.startTie;
+              if (core.tabString !== undefined) el.pitches[0].tabString = core.tabString;
             } else {
               el.rest = core.rest;
               if (core.rest.type === 'multimeasure' && isFirstVoice()) multilineVars.currBarNumber += core.rest.text - 1; // The minus one is because the measure with the rest is already counted once normally.
@@ -7586,6 +7587,19 @@ var getCoreNote = function getCoreNote(line, index, el, canHaveBrokenRhythm) {
         if (state === 'octave') {
           el.pitch += 7;
           el.name += "'";
+        } else if (isComplete(state)) {
+          el.endChar = index;
+          return el;
+        } else return null;
+        break;
+      case '@':
+        if (state === 'octave' || state === 'duration') {
+          index++;
+          if (index < line.length && line[index] >= '1' && line[index] <= '9') {
+            el.tabString = parseInt(line[index], 10);
+          } else {
+            index--; // no valid digit found, back up
+          }
         } else if (isComplete(state)) {
           el.endChar = index;
           return el;
@@ -16946,6 +16960,12 @@ var pluginTab = {
     defaultTuning: ['C,', 'G,', 'D', 'A', 'e'],
     isTabBig: false,
     tabSymbolOffset: -.95
+  },
+  'minorthirds': {
+    name: 'StringTab',
+    defaultTuning: ['E,', 'G,', '_B,', '_D', 'E', 'G', '_B', '_d'],
+    isTabBig: true,
+    tabSymbolOffset: 0
   }
 };
 var abcTablatures = {
@@ -17150,29 +17170,64 @@ function buildSecond(first) {
   return seconds;
 }
 function sameString(self, chord) {
-  for (var jjjj = 0; jjjj < chord.length - 1; jjjj++) {
-    var curPos = chord[jjjj];
-    var nextPos = chord[jjjj + 1];
-    if (curPos.str == nextPos.str) {
-      // same String
-      // => change lower pos 
-      if (curPos.str == self.strings.length - 1) {
-        // Invalid tab Chord position for instrument
-        curPos.num = "?";
-        nextPos.num = "?";
-        return;
+  var hasConflict = true;
+  var maxPasses = chord.length;
+  while (hasConflict && maxPasses > 0) {
+    hasConflict = false;
+    maxPasses--;
+    for (var jjjj = 0; jjjj < chord.length - 1; jjjj++) {
+      var curPos = chord[jjjj];
+      var nextPos = chord[jjjj + 1];
+      if (curPos.str == nextPos.str) {
+        // both pinned to same string — user's choice, skip
+        if (curPos.pinned && nextPos.pinned) continue;
+        hasConflict = true;
+        // same String
+        // => change the non-pinned note (or lower fret if neither pinned)
+        if (curPos.str == self.strings.length - 1) {
+          // Invalid tab Chord position for instrument
+          if (!curPos.pinned) curPos.num = "?";
+          if (!nextPos.pinned) nextPos.num = "?";
+          return;
+        }
+        // decide which note to move: never move a pinned note
+        var moveCur, moveNext;
+        if (curPos.pinned) {
+          moveCur = false;
+          moveNext = true;
+        } else if (nextPos.pinned) {
+          moveCur = true;
+          moveNext = false;
+        } else {
+          // neither pinned — move the one with lower fret number
+          moveCur = nextPos.num < curPos.num ? false : true;
+          moveNext = !moveCur;
+        }
+        if (moveNext) {
+          nextPos.str++;
+          nextPos = noteToNumber(self, nextPos.note, nextPos.str, self.secondPos, self.strings[nextPos.str].length);
+          if (!nextPos) {
+            nextPos = {
+              num: "?",
+              str: chord[jjjj + 1].str + 1,
+              note: chord[jjjj + 1].note
+            };
+          }
+        } else {
+          curPos.str++;
+          curPos = noteToNumber(self, curPos.note, curPos.str, self.secondPos, self.strings[curPos.str].length);
+          if (!curPos) {
+            curPos = {
+              num: "?",
+              str: chord[jjjj].str + 1,
+              note: chord[jjjj].note
+            };
+          }
+        }
+        // update table
+        chord[jjjj] = curPos;
+        chord[jjjj + 1] = nextPos;
       }
-      // change lower pitch on lowest string
-      if (nextPos.num < curPos.num) {
-        nextPos.str++;
-        nextPos = noteToNumber(self, nextPos.note, nextPos.str, self.secondPos, self.strings[nextPos.str].length);
-      } else {
-        curPos.str++;
-        curPos = noteToNumber(self, curPos.note, curPos.str, self.secondPos, self.strings[curPos.str].length);
-      }
-      // update table
-      chord[jjjj] = curPos;
-      chord[jjjj + 1] = nextPos;
     }
   }
   return null;
@@ -17183,7 +17238,13 @@ function handleChordNotes(self, notes) {
     if (notes[iiii].endTie) continue;
     var note = new TabNote(notes[iiii].name, self.clefTranspose);
     note.checkKeyAccidentals(self.accidentals, self.measureAccidentals);
-    var curPos = toNumber(self, note);
+    var curPos;
+    if (notes[iiii].tabString) {
+      curPos = pinnedToNumber(self, note, notes[iiii].tabString);
+      curPos.pinned = true;
+    } else {
+      curPos = toNumber(self, note);
+    }
     retNotes.push(curPos);
   }
   sameString(self, retNotes);
@@ -17216,6 +17277,29 @@ function noteToNumber(self, note, stringNumber, secondPosition, firstSize) {
     };
   }
   return null;
+}
+function pinnedToNumber(self, note, tabString) {
+  var str = tabString - 1; // 1-based (user) to 0-based (internal)
+  if (str < 0 || str >= self.stringPitches.length) {
+    return {
+      num: "?",
+      str: Math.max(0, Math.min(str, self.stringPitches.length - 1)),
+      note: note
+    };
+  }
+  var num = note.pitch + note.pitchAltered - self.stringPitches[self.stringPitches.length - 1 - str];
+  if (num < 0) {
+    return {
+      num: "?",
+      str: str,
+      note: note
+    };
+  }
+  return {
+    num: Math.round(num),
+    str: str,
+    note: note
+  };
 }
 function toNumber(self, note) {
   if (note.isAltered || note.natural) {
@@ -17275,7 +17359,11 @@ StringPatterns.prototype.notesToNumber = function (notes, graces) {
       if (!notes[0].endTie) {
         note = new TabNote(notes[0].name, this.clefTranspose);
         note.checkKeyAccidentals(this.accidentals, this.measureAccidentals);
-        number = toNumber(this, note);
+        if (notes[0].tabString) {
+          number = pinnedToNumber(this, note, notes[0].tabString);
+        } else {
+          number = toNumber(this, note);
+        }
         if (number) {
           retNotes.push(number);
         } else {
@@ -17385,7 +17473,16 @@ function StringPatterns(plugin) {
   // second position pattern per string
   this.secondPos = buildSecond(this);
 }
+function tuningToDisplayNames(tuning) {
+  var names = [];
+  for (var i = 0; i < tuning.length; i++) {
+    var str = tuning[i].replace(/[,']/g, '');
+    if (str[0] === '_') names.push(str[1].toUpperCase() + 'b');else if (str[0] === '^') names.push(str[1].toUpperCase() + '#');else if (str[0] === '=') names.push(str[1].toUpperCase());else names.push(str[0].toUpperCase());
+  }
+  return names;
+}
 module.exports = StringPatterns;
+module.exports.tuningToDisplayNames = tuningToDisplayNames;
 
 /***/ }),
 
@@ -17753,7 +17850,7 @@ Plugin.prototype.init = function (abcTune, tuneNumber, params, tabSettings) {
   this.tabSymbolOffset = tabSettings.tabSymbolOffset;
   this.capo = params.capo;
   this.transpose = params.visualTranspose;
-  this.hideTabSymbol = params.hideTabSymbol;
+  this.hideTabSymbol = true;
   this.tablature = new StringTablature(this.nbLines, this.linePitch);
   var tuning = params.tuning;
   if (!tuning) {
@@ -17863,11 +17960,11 @@ function buildTabAbsolute(plugin, absX, relX) {
 
   // Offset the TAB symbol position if specified in the tab description
   tabYPos += plugin.tabSymbolOffset;
+  var tabAbsolute = new AbsoluteElement(element, 0, 0, "symbol", 0);
+  tabAbsolute.x = absX;
 
   // For tablature like whistle tab where you want the TAB symbol hidden
   if (!plugin.hideTabSymbol) {
-    var tabAbsolute = new AbsoluteElement(element, 0, 0, "symbol", 0);
-    tabAbsolute.x = absX;
     var tabRelative = new RelativeElement(tabIcon, 0, 0, 7.5, "tab");
     tabRelative.x = relX;
     tabAbsolute.children.push(tabRelative);
@@ -17902,10 +17999,10 @@ function getInitialStaffSize(staffGroup) {
   }
   return returned;
 }
-function buildRelativeTabNote(plugin, relX, def, curNote, isGrace) {
+function buildRelativeTabNote(plugin, relX, def, curNote, isGrace, diminishedColor) {
   var strNote = curNote.num;
   if (curNote.note.quarter != null) {
-    // add tab quarter => needs to string conversion then 
+    // add tab quarter => needs to string conversion then
     strNote = strNote.toString();
     strNote += curNote.note.quarter;
   }
@@ -17918,6 +18015,9 @@ function buildRelativeTabNote(plugin, relX, def, curNote, isGrace) {
   var opt = {
     type: 'tabNumber'
   };
+  if (diminishedColor) {
+    opt.fill = diminishedColor;
+  }
   var tabNoteRelative = new RelativeElement(strNote, 0, 0, pitch + 0.3, opt);
   tabNoteRelative.x = relX;
   tabNoteRelative.isGrace = isGrace;
@@ -18083,6 +18183,7 @@ TabAbsoluteElements.prototype.build = function (plugin, staffAbsolute, tabVoice,
         };
         for (var ll = 0; ll < tabPos.notes.length; ll++) {
           var curNote = tabPos.notes[ll];
+          var dimColor = pitches && pitches[ll] ? pitches[ll].diminishedColor : null;
           if (curNote.graces) {
             for (var mm = 0; mm < curNote.graces.length; mm++) {
               var defGrace = {
@@ -18094,12 +18195,13 @@ TabAbsoluteElements.prototype.build = function (plugin, staffAbsolute, tabVoice,
               };
               var graceX = getXGrace(absChild, mm);
               var curGrace = curNote.graces[mm];
-              var tabGraceRelative = buildRelativeTabNote(plugin, graceX, defGrace, curGrace, true);
+              var graceColor = graceNotes && graceNotes[mm] ? graceNotes[mm].diminishedColor : null;
+              var tabGraceRelative = buildRelativeTabNote(plugin, graceX, defGrace, curGrace, true, graceColor);
               abs.children.push(tabGraceRelative);
               tabVoice.push(defGrace);
             }
           }
-          var tabNoteRelative = buildRelativeTabNote(plugin, abs.x + absChild.heads[ll].dx, defNote, curNote, false);
+          var tabNoteRelative = buildRelativeTabNote(plugin, abs.x + absChild.heads[ll].dx, defNote, curNote, false, dimColor);
           abs.children.push(tabNoteRelative);
         }
         if (defNote.notes.length > 0) {
@@ -18300,7 +18402,13 @@ function tabRenderer(plugin, renderer, line, staffIndex) {
   var padd = 3;
   var prevIndex = staffIndex;
   var previousStaff = staffGroup.staffs[prevIndex];
-  var tabTop = tabSize + padd - previousStaff.bottom - lyricsHeight;
+  var bottom = previousStaff.bottom;
+  if (previousStaff.lines === 'diminished') {
+    // The diminished staff's 8-position-per-octave pitch mapping creates
+    // more negative bottom values than treble. Normalize to match treble spacing.
+    bottom = Math.max(bottom, 0);
+  }
+  var tabTop = tabSize + padd - bottom - lyricsHeight;
   if (previousStaff.isTabStaff) {
     tabTop = previousStaff.top;
   }
@@ -18310,6 +18418,7 @@ function tabRenderer(plugin, renderer, line, staffIndex) {
     specialY: initSpecialY(),
     lines: plugin.nbLines,
     linePitch: plugin.linePitch,
+    tuning: plugin.tuning,
     dy: 0.15,
     top: tabTop
   };
@@ -18329,7 +18438,7 @@ function tabRenderer(plugin, renderer, line, staffIndex) {
   for (var ii = 0; ii < nbVoices; ii++) {
     var tabVoice = new VoiceElement(0, 0);
     if (ii > 0) tabVoice.duplicate = true;
-    var nameHeight = buildTabName(plugin, renderer, tabVoice) / spacing.STEP;
+    var nameHeight = 0;
     nameHeight = Math.max(nameHeight, 1); // If there is no label for the tab line, then there needs to be a little padding
     // This was pushing down the top staff by the tab label height
     //staffGroup.staffs[staffIndex].top += nameHeight;
@@ -19992,6 +20101,8 @@ var createClef = function createClef(elem, tuneNumber) {
       octave = -1;
       break;
     case 'none':
+      return null;
+    case 'TAB':
       return null;
     case 'diminished':
       clef = "clefs.diminished";
@@ -24323,7 +24434,7 @@ function drawRelativeElement(renderer, params, bartop) {
         y += 2.5;
         tabClass = 'tab-grace';
       }
-      params.graphelem = renderText(renderer, {
+      var tabTextOpts = {
         x: params.x,
         y: y,
         text: "" + params.c,
@@ -24333,7 +24444,9 @@ function drawRelativeElement(renderer, params, bartop) {
         centerVertically: false,
         dim: params.dim,
         cursor: 'default'
-      }, false);
+      };
+      if (params.fill) tabTextOpts.fill = params.fill;
+      params.graphelem = renderText(renderer, tabTextOpts, false);
       break;
     case "barNumber":
       params.graphelem = renderText(renderer, {
@@ -24706,6 +24819,8 @@ var printStaff = __webpack_require__(/*! ./staff */ "./src/write/draw/staff.js")
 var printDebugBox = __webpack_require__(/*! ./debug-box */ "./src/write/draw/debug-box.js");
 var printStem = __webpack_require__(/*! ./print-stem */ "./src/write/draw/print-stem.js");
 var nonMusic = __webpack_require__(/*! ./non-music */ "./src/write/draw/non-music.js");
+var renderText = __webpack_require__(/*! ./text */ "./src/write/draw/text.js");
+var tuningToDisplayNames = (__webpack_require__(/*! ../../tablatures/instruments/string-patterns */ "./src/tablatures/instruments/string-patterns.js").tuningToDisplayNames);
 function drawStaffGroup(renderer, params, selectables, lineNumber) {
   // We enter this method with renderer.y pointing to the topmost coordinate that we're allowed to draw.
   // All of the children that will be drawn have a relative "pitch" set, where zero is the first ledger line below the staff.
@@ -24807,6 +24922,65 @@ function drawStaffGroup(renderer, params, selectables, lineNumber) {
           bartop = staff.hasStaff.topLine;
           params.voices[i].barto = true;
           params.voices[i].topLine = topLine;
+        }
+
+        // Draw string name labels to the left of tab staff
+        if (staff.isTabStaff && staff.tuning) {
+          var displayNames = tuningToDisplayNames(staff.tuning);
+          var numStrings = staff.lines;
+          var lp = staff.linePitch || 2;
+          var labelFontSize = 7;
+          var labelGap = 3;
+          var labelFont = {
+            face: '"Helvetica Neue", Helvetica, Arial, sans-serif',
+            size: labelFontSize,
+            weight: 'normal',
+            style: 'normal',
+            decoration: 'none'
+          };
+          var maxLabelWidth = 0;
+
+          // Measure widest label
+          for (var si = 0; si < numStrings; si++) {
+            var labelText = displayNames[si] || '';
+            var measuredSize = renderer.controller.getTextSize.calc(labelText, labelFont, 'text tab-label');
+            if (measuredSize.width > maxLabelWidth) maxLabelWidth = measuredSize.width;
+          }
+
+          // Build dim object for renderText
+          var labelDim = renderer.controller.getFontAndAttr.calc('annotationfont', 'text tab-label');
+          labelDim.font = {
+            face: labelFont.face,
+            size: labelFontSize,
+            weight: labelFont.weight,
+            style: labelFont.style,
+            decoration: labelFont.decoration
+          };
+          labelDim.attr['font-size'] = labelFontSize;
+          labelDim.attr['font-family'] = 'Helvetica Neue, Helvetica, Arial, sans-serif';
+          labelDim.attr['font-weight'] = 'normal';
+
+          // Draw each label centered on its string line
+          // tuning[0] is lowest string = bottom line, tuning[last] is highest = top line
+          for (var sj = 0; sj < numStrings; sj++) {
+            var labelText2 = displayNames[sj] || '';
+            var stringPitch = (sj + 1) * lp;
+            var stringY = renderer.calcY(stringPitch);
+            var labelX = params.startx - maxLabelWidth - 1;
+            renderText(renderer, {
+              x: labelX,
+              y: stringY + labelFontSize / 3,
+              text: labelText2,
+              dim: JSON.parse(JSON.stringify(labelDim)),
+              klass: 'text tab-label',
+              anchor: 'start',
+              centerVertically: true
+            });
+          }
+
+          // Draw vertical separator line to the right of the barline
+          var sepX = params.startx + 2;
+          printStem(renderer, sepX, 0.6, staff.topLine, staff.bottomLine, null);
         }
       }
       printBrace(renderer, staff.absoluteY, params.brace, i, selectables);
@@ -25123,6 +25297,9 @@ function renderText(renderer, params, alreadyInGroup) {
   }
   if (params.cursor) {
     hash.attr.cursor = params.cursor;
+  }
+  if (params.fill) {
+    hash.attr.fill = params.fill;
   }
 
   // MAE 9 May 2025 for free text blocks
