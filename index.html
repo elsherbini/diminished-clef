@@ -221,7 +221,17 @@
 
 		<!-- ===== EDITOR TAB ===== -->
 		<section id="editor-tab" class="hidden">
-			<p>Enter ABC notation below.</p>
+			<details style="margin-bottom:10px">
+				<summary style="cursor:pointer;font-weight:bold;font-size:15px">ABC Quick Reference</summary>
+				<div style="font-size:13px;line-height:1.5;margin-top:8px;max-width:800px">
+					<p style="margin:0 0 6px">Notes are letters: <code>C D E F G A B c d e f g a b</code>. Uppercase&nbsp;=&nbsp;low octave, lowercase&nbsp;=&nbsp;high octave. Add commas to go lower (<code>C,</code>), apostrophes to go higher (<code>c'</code>).</p>
+					<p style="margin:0 0 6px">Accidentals: <code>^</code>&nbsp;=&nbsp;sharp, <code>_</code>&nbsp;=&nbsp;flat, <code>=</code>&nbsp;=&nbsp;natural. Example: <code>^F _B =E</code></p>
+					<p style="margin:0 0 6px">Durations follow the note: <code>C2</code>&nbsp;=&nbsp;half note, <code>C/2</code>&nbsp;=&nbsp;eighth note, <code>C3/2</code>&nbsp;=&nbsp;dotted quarter. Default duration is set by <code>L:</code> (e.g.&nbsp;<code>L:1/4</code>&nbsp;=&nbsp;quarter note).</p>
+					<p style="margin:0 0 6px">Chords: <code>[CEG]</code> plays notes simultaneously. Rests: <code>z</code> (same duration rules). Barlines: <code>|</code> separates measures.</p>
+					<p style="margin:0 0 6px"><strong>Header fields</strong> (one per line, before the music): <code>L:1/4</code> default note length · <code>M:4/4</code> time signature · <code>K:C</code> key · <code>Q:1/4=120</code> tempo · <code>V:1 treble</code> voice with clef.</p>
+					<p style="margin:0"><strong>Tab string pinning (<code>@</code>):</strong> When tab is enabled, append <code>@</code> and a string number to force a note onto that string (1&nbsp;=&nbsp;highest string). <code>_E@3</code> places Eb on string&nbsp;3. Put duration before <code>@</code>: <code>C/2@4</code> is an eighth note C on string&nbsp;4. Without <code>@</code>, strings are assigned automatically.</p>
+				</div>
+			</details>
 			<textarea id="editor-input">L:1/4
 M:4/4
 Q:1/4=110
