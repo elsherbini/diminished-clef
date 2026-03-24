@@ -18201,7 +18201,7 @@ TabAbsoluteElements.prototype.build = function (plugin, staffAbsolute, tabVoice,
               tabVoice.push(defGrace);
             }
           }
-          var tabNoteRelative = buildRelativeTabNote(plugin, abs.x + absChild.heads[ll].dx, defNote, curNote, false, dimColor);
+          var tabNoteRelative = buildRelativeTabNote(plugin, abs.x, defNote, curNote, false, dimColor);
           abs.children.push(tabNoteRelative);
         }
         if (defNote.notes.length > 0) {
