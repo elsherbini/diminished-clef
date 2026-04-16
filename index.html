@@ -126,6 +126,57 @@
 		.note-purple { color: #7733aa; font-weight: 600; }
 		.note-orange { color: #cc6600; font-weight: 600; }
 
+		/* Quiz tab */
+		.note-grid {
+			display: flex;
+			gap: 5px;
+			flex-wrap: wrap;
+			margin-bottom: 15px;
+		}
+		.note-grid button {
+			padding: 8px 12px;
+			border: 2px solid #ccc;
+			background: #f5f5f5;
+			cursor: pointer;
+			font-size: 14px;
+			min-width: 70px;
+			border-radius: 4px;
+		}
+		.note-grid button.selected {
+			background: #333;
+			color: #fff;
+			border-color: #333;
+		}
+		.note-grid button.correct {
+			background: #d4edda;
+			border-color: #28a745;
+			color: #155724;
+		}
+		.note-grid button.wrong {
+			background: #f8d7da;
+			border-color: #dc3545;
+			color: #721c24;
+		}
+		.note-grid button:disabled { cursor: default; opacity: 0.8; }
+		.quiz-actions {
+			display: flex;
+			gap: 10px;
+			align-items: center;
+			flex-wrap: wrap;
+		}
+		.quiz-actions button {
+			padding: 8px 20px;
+			border: 1px solid #ccc;
+			background: #f5f5f5;
+			cursor: pointer;
+			font-size: 15px;
+			border-radius: 4px;
+		}
+		.quiz-actions button:disabled { cursor: default; opacity: 0.5; }
+		#quiz-submit { font-weight: bold; }
+		#quiz-feedback { font-size: 15px; font-weight: bold; }
+		.quiz-streak { margin-left: auto; color: #666; font-size: 14px; }
+
 		/* Shared */
 		.abcjs-cursor { stroke: red; stroke-width: 2; opacity: 0.7; }
 		.highlight { fill: #0a9ecc; }
@@ -138,6 +189,7 @@
 		<nav class="tab-nav">
 			<button class="tab-btn active" data-tab="about" onclick="switchTab('about')">About</button>
 			<button class="tab-btn" data-tab="editor" onclick="switchTab('editor')">Editor</button>
+			<button class="tab-btn" data-tab="quiz" onclick="switchTab('quiz')">Quiz</button>
 		</nav>
 	</header>
 
@@ -286,6 +338,54 @@ V:1 treble
 				</div>
 			</div>
 		</section>
+
+		<!-- ===== QUIZ TAB ===== -->
+		<section id="quiz-tab" class="hidden">
+			<div class="controls-row quiz-categories">
+				<span style="color:#666;font-size:14px">Question type:</span>
+				<div class="view-toggle">
+					<button class="active" data-quiz-cat="single" onclick="toggleQuizCategory(this)">Single Notes</button>
+					<button data-quiz-cat="dyads" onclick="toggleQuizCategory(this)">Dyads</button>
+					<button data-quiz-cat="triads" onclick="toggleQuizCategory(this)">Triads</button>
+					<button data-quiz-cat="quadrads" onclick="toggleQuizCategory(this)">Quadrads</button>
+				</div>
+				<div class="view-toggle">
+					<span style="color:#666;font-size:14px">Inversions:</span>
+					<button id="btn-inv-all" class="active" onclick="setQuizInversions('all')">All</button>
+					<button id="btn-inv-root" onclick="setQuizInversions('root')">Root Only</button>
+				</div>
+				<div class="view-toggle">
+					<span style="color:#666;font-size:14px">Colors:</span>
+					<button id="btn-quiz-color-metaharmony" class="active" onclick="setQuizColors('metaharmony')">Metaharmony</button>
+					<button id="btn-quiz-color-bw" onclick="setQuizColors('bw')">B&amp;W</button>
+					<button id="btn-quiz-color-elements" onclick="setQuizColors('elements')">Elements</button>
+				</div>
+				<button id="btn-hint" onclick="toggleQuizHint()" style="padding:6px 16px;border:1px solid #ccc;background:#f5f5f5;cursor:pointer;font-size:14px">Show Hint</button>
+			</div>
+			<div id="quiz-staff" class="render-target" style="min-height:120px;margin-bottom:10px"></div>
+			<div id="quiz-audio" style="margin-bottom:15px"></div>
+			<div id="quiz-hint" class="hidden" style="margin-bottom:10px;font-size:15px;color:#666;font-style:italic"></div>
+			<div class="note-grid">
+				<button data-pc="0" onclick="toggleNote(this)">C</button>
+				<button data-pc="1" onclick="toggleNote(this)">C#/Db</button>
+				<button data-pc="2" onclick="toggleNote(this)">D</button>
+				<button data-pc="3" onclick="toggleNote(this)">D#/Eb</button>
+				<button data-pc="4" onclick="toggleNote(this)">E</button>
+				<button data-pc="5" onclick="toggleNote(this)">F</button>
+				<button data-pc="6" onclick="toggleNote(this)">F#/Gb</button>
+				<button data-pc="7" onclick="toggleNote(this)">G</button>
+				<button data-pc="8" onclick="toggleNote(this)">G#/Ab</button>
+				<button data-pc="9" onclick="toggleNote(this)">A</button>
+				<button data-pc="10" onclick="toggleNote(this)">A#/Bb</button>
+				<button data-pc="11" onclick="toggleNote(this)">B</button>
+			</div>
+			<div class="quiz-actions">
+				<button id="quiz-submit" onclick="checkQuizAnswer()" disabled>Submit</button>
+				<button id="quiz-next" class="hidden" onclick="nextQuestion()">Next</button>
+				<span id="quiz-feedback"></span>
+				<span id="quiz-streak" class="quiz-streak">Streak: 0 | Best: 0</span>
+			</div>
+		</section>
 	</main>
 
 	<script type="text/javascript">
@@ -405,6 +505,11 @@ V:1 treble
 			});
 			document.getElementById("about-tab").classList.toggle("hidden", tab !== "about");
 			document.getElementById("editor-tab").classList.toggle("hidden", tab !== "editor");
+			document.getElementById("quiz-tab").classList.toggle("hidden", tab !== "quiz");
+			if (tab === "quiz" && !quizInitialized) {
+				quizInitialized = true;
+				generateQuestion();
+			}
 		}
 
 		// ===== About Tab Examples =====
@@ -666,6 +771,333 @@ V:1 treble
 			}).catch(function(err) {
 				console.warn("Editor audio setup error:", err);
 			});
+		}
+
+		// ===== Quiz Tab =====
+
+		var quizInitialized = false;
+		var quizStreak = 0;
+		var quizBest = 0;
+		var quizCorrectPCs = [];
+		var quizSynthControl = null;
+		var quizLocked = false;
+		var quizCurrentAbc = "";
+		var quizInversions = "all";
+		var quizShowHint = false;
+		var quizColors = "metaharmony";
+
+		var QUIZ_MIDI_MIN = 59; // B3
+		var QUIZ_MIDI_MAX = 91; // G6
+
+		// Map semitone interval to bass label
+		var intervalBassLabels = {
+			3: "minor 3rd", 4: "3rd", 5: "4th", 6: "b5",
+			7: "5th", 8: "minor 6th", 9: "6th", 10: "b7", 11: "7th"
+		};
+
+		function setQuizColors(mode) {
+			quizColors = mode;
+			document.getElementById("btn-quiz-color-metaharmony").classList.toggle("active", mode === "metaharmony");
+			document.getElementById("btn-quiz-color-bw").classList.toggle("active", mode === "bw");
+			document.getElementById("btn-quiz-color-elements").classList.toggle("active", mode === "elements");
+			// Re-render current staff with new colors (same question)
+			if (quizInitialized && quizCurrentAbc) {
+				ABCJS.renderAbc("quiz-staff", makeDimAbc(quizCurrentAbc), {
+					responsive: "resize",
+					add_classes: true,
+					staffwidth: 200,
+					diminishedColors: quizColors
+				});
+			}
+		}
+
+		function setQuizInversions(mode) {
+			quizInversions = mode;
+			document.getElementById("btn-inv-all").classList.toggle("active", mode === "all");
+			document.getElementById("btn-inv-root").classList.toggle("active", mode === "root");
+		}
+
+		function toggleQuizHint() {
+			quizShowHint = !quizShowHint;
+			var btn = document.getElementById("btn-hint");
+			btn.classList.toggle("active", quizShowHint);
+			btn.style.background = quizShowHint ? "#333" : "#f5f5f5";
+			btn.style.color = quizShowHint ? "#fff" : "";
+			btn.style.borderColor = quizShowHint ? "#333" : "#ccc";
+			updateHintDisplay();
+		}
+
+		function updateHintDisplay() {
+			var el = document.getElementById("quiz-hint");
+			if (quizShowHint && el.getAttribute("data-hint")) {
+				el.textContent = "Hint: " + el.getAttribute("data-hint");
+				el.classList.remove("hidden");
+			} else {
+				el.classList.add("hidden");
+			}
+		}
+
+		var quizVoicings = {
+			single: [{ name: "Note", intervals: [0] }],
+			dyads: [
+				{ name: "Minor 3rd", intervals: [0, 3] },
+				{ name: "Major 3rd", intervals: [0, 4] },
+				{ name: "Perfect 4th", intervals: [0, 5] },
+				{ name: "Perfect 5th", intervals: [0, 7] },
+				{ name: "Minor 6th", intervals: [0, 8] },
+				{ name: "Major 6th", intervals: [0, 9] }
+			],
+			triads: [
+				{ name: "Major", intervals: [0, 4, 7] },
+				{ name: "Minor", intervals: [0, 3, 7] },
+				{ name: "Diminished", intervals: [0, 3, 6] },
+				{ name: "Augmented", intervals: [0, 4, 8] },
+				{ name: "Major spread", intervals: [0, 7, 16] },
+				{ name: "Minor spread", intervals: [0, 7, 15] }
+			],
+			quadrads: [
+				{ name: "Maj7", intervals: [0, 4, 7, 11] },
+				{ name: "Dom7", intervals: [0, 4, 7, 10] },
+				{ name: "Maj6", intervals: [0, 4, 7, 9] },
+				{ name: "Min6", intervals: [0, 3, 7, 9] },
+				{ name: "Dom7b5", intervals: [0, 4, 6, 10] },
+				{ name: "Min7b5", intervals: [0, 3, 6, 10] },
+				{ name: "Maj7 drop2", intervals: [0, 7, 11, 16] },
+				{ name: "Dom7 drop2", intervals: [0, 7, 10, 16] },
+				{ name: "Maj6 drop2", intervals: [0, 7, 9, 16] },
+				{ name: "Min6 drop2", intervals: [0, 7, 9, 15] },
+				{ name: "Dom7b5 drop2", intervals: [0, 6, 10, 16] },
+				{ name: "Min7b5 drop2", intervals: [0, 6, 10, 15] }
+			]
+		};
+
+		// MIDI note to ABC notation (B3=59 through E6=88)
+		// Natural notes use explicit = to avoid accidental carryover in chords
+		var midiAbcMap = {
+			59: "=B,", 60: "=C", 61: "_D", 62: "=D", 63: "_E", 64: "=E", 65: "=F",
+			66: "^F", 67: "=G", 68: "_A", 69: "=A", 70: "_B", 71: "=B",
+			72: "=c", 73: "_d", 74: "=d", 75: "_e", 76: "=e", 77: "=f",
+			78: "^f", 79: "=g", 80: "_a", 81: "=a", 82: "_b", 83: "=b",
+			84: "=c'", 85: "_d'", 86: "=d'", 87: "_e'", 88: "=e'",
+			89: "=f'", 90: "^f'", 91: "=g'"
+		};
+
+		function midiToAbc(midi) {
+			return midiAbcMap[midi] || "C";
+		}
+
+		function midiToPitchClass(midi) {
+			return ((midi % 12) + 12) % 12;
+		}
+
+		function getActiveQuizCategories() {
+			var cats = [];
+			document.querySelectorAll("[data-quiz-cat].active").forEach(function(b) {
+				cats.push(b.getAttribute("data-quiz-cat"));
+			});
+			return cats;
+		}
+
+		function toggleQuizCategory(btn) {
+			btn.classList.toggle("active");
+			// Ensure at least one category is active
+			if (getActiveQuizCategories().length === 0) {
+				btn.classList.add("active");
+			}
+		}
+
+		function invertVoicing(intervals) {
+			if (intervals.length <= 1) return intervals.slice();
+			// Rotate: move bottom note up by 12
+			var sorted = intervals.slice().sort(function(a, b) { return a - b; });
+			var bottom = sorted.shift();
+			sorted.push(bottom + 12);
+			// Normalize so lowest is 0
+			var min = sorted[0];
+			return sorted.map(function(n) { return n - min; });
+		}
+
+		function generateQuestion(attempts) {
+			attempts = attempts || 0;
+			quizLocked = false;
+
+			// Reset UI
+			document.querySelectorAll(".note-grid button").forEach(function(b) {
+				b.classList.remove("selected", "correct", "wrong");
+				b.disabled = false;
+			});
+			document.getElementById("quiz-submit").disabled = true;
+			document.getElementById("quiz-next").classList.add("hidden");
+			document.getElementById("quiz-feedback").textContent = "";
+
+			var cats = getActiveQuizCategories();
+			var cat = cats[Math.floor(Math.random() * cats.length)];
+			var voicingList = quizVoicings[cat];
+			var voicing = voicingList[Math.floor(Math.random() * voicingList.length)];
+
+			// Random root (0-11 semitones, 0=C)
+			var root = Math.floor(Math.random() * 12);
+
+			// Get intervals, apply random inversion for triads/quadrads
+			var intervals = voicing.intervals.slice();
+			var numInversions = 0;
+			var bassOffset = 0; // cumulative semitone offset from root to bass note
+			if ((cat === "triads" || cat === "quadrads") && quizInversions === "all") {
+				numInversions = Math.floor(Math.random() * intervals.length);
+				for (var i = 0; i < numInversions; i++) {
+					// Track offset: after inversion, the new bass was at sorted[1]
+					var s = intervals.slice().sort(function(a, b) { return a - b; });
+					bassOffset += s[1];
+					intervals = invertVoicing(intervals);
+				}
+			}
+
+			// Convert to MIDI notes. B3=59, E6=88
+			var sorted = intervals.slice().sort(function(a, b) { return a - b; });
+			var span = sorted[sorted.length - 1] - sorted[0];
+			var minBase = QUIZ_MIDI_MIN;
+			var maxBase = QUIZ_MIDI_MAX - span;
+			if (maxBase < minBase) {
+				// Chord too wide - reroll (up to 50 attempts)
+				if (attempts < 50) return generateQuestion(attempts + 1);
+				return;
+			}
+
+			// idealBase accounts for which chord tone is now at interval 0
+			var idealBase = 60 + root + bassOffset;
+			while (idealBase + sorted[0] < minBase) idealBase += 12;
+			while (idealBase + sorted[sorted.length - 1] > QUIZ_MIDI_MAX) idealBase -= 12;
+
+			// Check fit
+			if (idealBase + sorted[0] < QUIZ_MIDI_MIN || idealBase + sorted[sorted.length - 1] > QUIZ_MIDI_MAX) {
+				// Doesn't fit - reroll
+				if (attempts < 50) return generateQuestion(attempts + 1);
+				return;
+			}
+
+			var midiNotes = intervals.map(function(iv) { return idealBase + iv; });
+			midiNotes.sort(function(a, b) { return a - b; });
+
+			// Final range check
+			if (midiNotes[0] < QUIZ_MIDI_MIN || midiNotes[midiNotes.length - 1] > QUIZ_MIDI_MAX) {
+				if (attempts < 50) return generateQuestion(attempts + 1);
+				return;
+			}
+
+			// Store correct pitch classes
+			quizCorrectPCs = [];
+			midiNotes.forEach(function(m) {
+				var pc = midiToPitchClass(m);
+				if (quizCorrectPCs.indexOf(pc) === -1) quizCorrectPCs.push(pc);
+			});
+			quizCorrectPCs.sort(function(a, b) { return a - b; });
+
+			// Build hint text
+			var hintText = voicing.name;
+			var bassChordTone = ((bassOffset % 12) + 12) % 12;
+			if (numInversions > 0 && bassChordTone > 0 && intervalBassLabels[bassChordTone]) {
+				hintText += ", " + intervalBassLabels[bassChordTone] + " in bass";
+			}
+			document.getElementById("quiz-hint").setAttribute("data-hint", hintText);
+			updateHintDisplay();
+
+			// Build ABC
+			var abcNotes;
+			if (midiNotes.length === 1) {
+				abcNotes = midiToAbc(midiNotes[0]);
+			} else {
+				abcNotes = "[" + midiNotes.map(midiToAbc).join("") + "]";
+			}
+			var abc = "L:1/4\nK:C\n" + abcNotes + "4";
+			quizCurrentAbc = abc;
+
+			// Render on diminished staff
+			var dimAbc = makeDimAbc(abc);
+			ABCJS.renderAbc("quiz-staff", dimAbc, {
+				responsive: "resize",
+				add_classes: true,
+				staffwidth: 200,
+				diminishedColors: quizColors
+			});
+
+			// Set up audio
+			setupQuizAudio(abc);
+		}
+
+		function setupQuizAudio(abc) {
+			if (!ABCJS.synth.supportsAudio()) {
+				document.getElementById("quiz-audio").innerHTML = "<div>Audio not supported.</div>";
+				return;
+			}
+
+			var tuneObj = ABCJS.renderAbc("*", abc)[0];
+
+			document.getElementById("quiz-audio").innerHTML = "";
+			quizSynthControl = new ABCJS.synth.SynthController();
+			quizSynthControl.load("#quiz-audio", null, {
+				displayPlay: true,
+				displayProgress: false,
+				displayWarp: false,
+				displayRestart: false
+			});
+			quizSynthControl.setTune(tuneObj, false).catch(function(err) {
+				console.warn("Quiz audio setup error:", err);
+			});
+		}
+
+		function toggleNote(btn) {
+			if (quizLocked) return;
+			btn.classList.toggle("selected");
+			// Enable submit if at least one note selected
+			var anySelected = document.querySelector(".note-grid button.selected");
+			document.getElementById("quiz-submit").disabled = !anySelected;
+		}
+
+		function checkQuizAnswer() {
+			if (quizLocked) return;
+			quizLocked = true;
+
+			var selectedPCs = [];
+			document.querySelectorAll(".note-grid button.selected").forEach(function(b) {
+				selectedPCs.push(parseInt(b.getAttribute("data-pc")));
+			});
+			selectedPCs.sort(function(a, b) { return a - b; });
+
+			var correct = selectedPCs.length === quizCorrectPCs.length &&
+				selectedPCs.every(function(pc, i) { return pc === quizCorrectPCs[i]; });
+
+			// Show feedback on buttons
+			document.querySelectorAll(".note-grid button").forEach(function(b) {
+				var pc = parseInt(b.getAttribute("data-pc"));
+				var isCorrect = quizCorrectPCs.indexOf(pc) !== -1;
+				var isSelected = b.classList.contains("selected");
+				if (isCorrect) {
+					b.classList.add("correct");
+				} else if (isSelected) {
+					b.classList.add("wrong");
+				}
+				b.disabled = true;
+			});
+
+			var feedback = document.getElementById("quiz-feedback");
+			if (correct) {
+				quizStreak++;
+				if (quizStreak > quizBest) quizBest = quizStreak;
+				feedback.textContent = "Correct!";
+				feedback.style.color = "#28a745";
+			} else {
+				quizStreak = 0;
+				feedback.textContent = "Wrong";
+				feedback.style.color = "#dc3545";
+			}
+
+			document.getElementById("quiz-streak").textContent = "Streak: " + quizStreak + " | Best: " + quizBest;
+			document.getElementById("quiz-submit").disabled = true;
+			document.getElementById("quiz-next").classList.remove("hidden");
+		}
+
+		function nextQuestion() {
+			generateQuestion();
 		}
 
 		// ===== Initialization =====
