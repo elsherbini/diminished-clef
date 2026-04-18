@@ -189,6 +189,67 @@
 		#quiz-text-input.correct { border-color: #28a745; background: #d4edda; }
 		#quiz-text-input.wrong { border-color: #dc3545; background: #f8d7da; }
 
+		/* Quiz dropdowns */
+		.quiz-cat-group {
+			position: relative;
+			display: inline-flex;
+		}
+		.quiz-cat-group > button:first-child {
+			border-right: none;
+			border-radius: 4px 0 0 4px;
+		}
+		.quiz-cat-arrow {
+			padding: 8px 6px;
+			border: 1px solid #ccc;
+			background: #f5f5f5;
+			cursor: pointer;
+			font-size: 12px;
+			border-radius: 0 4px 4px 0;
+			line-height: 1;
+		}
+		.quiz-cat-arrow.open {
+			background: #ddd;
+		}
+		.quiz-type-dropdown {
+			position: absolute;
+			top: 100%;
+			left: 0;
+			z-index: 10;
+			min-width: 170px;
+			background: #fff;
+			border: 1px solid #ccc;
+			border-radius: 4px;
+			box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+			padding: 8px;
+			margin-top: 2px;
+		}
+		.quiz-type-dropdown .dropdown-actions {
+			font-size: 12px;
+			color: #666;
+			margin-bottom: 6px;
+		}
+		.quiz-type-dropdown .dropdown-actions a {
+			color: #555;
+			cursor: pointer;
+			text-decoration: underline;
+		}
+		.quiz-type-dropdown .dropdown-actions a:hover {
+			color: #000;
+		}
+		.quiz-type-dropdown label {
+			display: block;
+			font-size: 13px;
+			padding: 3px 0;
+			cursor: pointer;
+			white-space: nowrap;
+		}
+		.quiz-type-dropdown label:hover {
+			background: #f5f5f5;
+		}
+		.quiz-type-dropdown input[type="checkbox"] {
+			margin-right: 6px;
+		}
+
 		/* Shared */
 		.abcjs-cursor { stroke: red; stroke-width: 2; opacity: 0.7; }
 		.highlight { fill: #0a9ecc; }
@@ -357,9 +418,18 @@ V:1 treble
 				<span style="color:#666;font-size:14px">Question type:</span>
 				<div class="view-toggle">
 					<button class="active" data-quiz-cat="single" onclick="toggleQuizCategory(this)">Single Notes</button>
-					<button data-quiz-cat="dyads" onclick="toggleQuizCategory(this)">Dyads</button>
-					<button data-quiz-cat="triads" onclick="toggleQuizCategory(this)">Triads</button>
-					<button data-quiz-cat="quadrads" onclick="toggleQuizCategory(this)">Quadrads</button>
+					<div class="quiz-cat-group">
+						<button data-quiz-cat="dyads" onclick="toggleQuizCategory(this)">Dyads (6/6)</button><button class="quiz-cat-arrow" onclick="toggleTypeDropdown('dyads', event)">&#9662;</button>
+						<div id="dropdown-dyads" class="quiz-type-dropdown hidden"></div>
+					</div>
+					<div class="quiz-cat-group">
+						<button data-quiz-cat="triads" onclick="toggleQuizCategory(this)">Triads (6/6)</button><button class="quiz-cat-arrow" onclick="toggleTypeDropdown('triads', event)">&#9662;</button>
+						<div id="dropdown-triads" class="quiz-type-dropdown hidden"></div>
+					</div>
+					<div class="quiz-cat-group">
+						<button data-quiz-cat="quadrads" onclick="toggleQuizCategory(this)">Quadrads (12/12)</button><button class="quiz-cat-arrow" onclick="toggleTypeDropdown('quadrads', event)">&#9662;</button>
+						<div id="dropdown-quadrads" class="quiz-type-dropdown hidden"></div>
+					</div>
 				</div>
 				<div class="view-toggle">
 					<span style="color:#666;font-size:14px">Inversions:</span>
@@ -808,6 +878,123 @@ V:1 treble
 		var traditionalNames = ['C', 'C#/Db', 'D', 'D#/Eb', 'E', 'F', 'F#/Gb', 'G', 'G#/Ab', 'A', 'A#/Bb', 'B'];
 		var quizMidiNotes = [];
 
+		var quizTypeFilters = {
+			dyads: [],
+			triads: [],
+			quadrads: []
+		};
+
+		function initTypeFilters() {
+			['dyads', 'triads', 'quadrads'].forEach(function(cat) {
+				quizTypeFilters[cat] = [];
+				for (var i = 0; i < quizVoicings[cat].length; i++) {
+					quizTypeFilters[cat].push(i);
+				}
+			});
+		}
+
+		function buildDropdownHTML(cat) {
+			var voicings = quizVoicings[cat];
+			var html = '<div class="dropdown-actions"><a onclick="selectAllTypes(\'' + cat + '\')">All</a> &middot; <a onclick="selectNoneTypes(\'' + cat + '\')">None</a></div>';
+			for (var i = 0; i < voicings.length; i++) {
+				html += '<label><input type="checkbox" checked data-cat="' + cat + '" data-idx="' + i + '" onchange="toggleTypeFilter(\'' + cat + '\',' + i + ')">' + voicings[i].name + '</label>';
+			}
+			return html;
+		}
+
+		function initTypeDropdowns() {
+			initTypeFilters();
+			['dyads', 'triads', 'quadrads'].forEach(function(cat) {
+				document.getElementById('dropdown-' + cat).innerHTML = buildDropdownHTML(cat);
+			});
+		}
+
+		function toggleTypeDropdown(cat, event) {
+			event.stopPropagation();
+			var dropdown = document.getElementById('dropdown-' + cat);
+			var arrow = dropdown.parentNode.querySelector('.quiz-cat-arrow');
+			var wasHidden = dropdown.classList.contains('hidden');
+
+			// Close all dropdowns first
+			closeAllDropdowns();
+
+			if (wasHidden) {
+				dropdown.classList.remove('hidden');
+				arrow.classList.add('open');
+			}
+		}
+
+		function closeAllDropdowns() {
+			['dyads', 'triads', 'quadrads'].forEach(function(cat) {
+				document.getElementById('dropdown-' + cat).classList.add('hidden');
+				var arrow = document.getElementById('dropdown-' + cat).parentNode.querySelector('.quiz-cat-arrow');
+				arrow.classList.remove('open');
+			});
+		}
+
+		function toggleTypeFilter(cat, idx) {
+			var pos = quizTypeFilters[cat].indexOf(idx);
+			if (pos !== -1) {
+				// Prevent deselecting last one
+				if (quizTypeFilters[cat].length <= 1) {
+					// Re-check the checkbox
+					var cb = document.querySelector('#dropdown-' + cat + ' input[data-idx="' + idx + '"]');
+					if (cb) cb.checked = true;
+					return;
+				}
+				quizTypeFilters[cat].splice(pos, 1);
+			} else {
+				quizTypeFilters[cat].push(idx);
+				quizTypeFilters[cat].sort(function(a, b) { return a - b; });
+			}
+			updateCatLabel(cat);
+		}
+
+		function selectAllTypes(cat) {
+			quizTypeFilters[cat] = [];
+			for (var i = 0; i < quizVoicings[cat].length; i++) {
+				quizTypeFilters[cat].push(i);
+			}
+			var checkboxes = document.querySelectorAll('#dropdown-' + cat + ' input[type="checkbox"]');
+			checkboxes.forEach(function(cb) { cb.checked = true; });
+			updateCatLabel(cat);
+		}
+
+		function selectNoneTypes(cat) {
+			// Keep only the first one
+			quizTypeFilters[cat] = [0];
+			var checkboxes = document.querySelectorAll('#dropdown-' + cat + ' input[type="checkbox"]');
+			checkboxes.forEach(function(cb) {
+				cb.checked = (parseInt(cb.getAttribute('data-idx')) === 0);
+			});
+			updateCatLabel(cat);
+		}
+
+		function updateCatLabel(cat) {
+			var btn = document.querySelector('[data-quiz-cat="' + cat + '"]');
+			if (!btn) return;
+			var total = quizVoicings[cat].length;
+			var selected = quizTypeFilters[cat].length;
+			var name = cat.charAt(0).toUpperCase() + cat.slice(1);
+			btn.textContent = name + ' (' + selected + '/' + total + ')';
+		}
+
+		function getFilteredVoicings(cat) {
+			if (!quizTypeFilters[cat] || quizTypeFilters[cat].length === 0) {
+				return quizVoicings[cat];
+			}
+			return quizTypeFilters[cat].map(function(idx) {
+				return quizVoicings[cat][idx];
+			});
+		}
+
+		document.addEventListener('click', function(e) {
+			// Close dropdowns when clicking outside
+			if (!e.target.closest('.quiz-cat-group')) {
+				closeAllDropdowns();
+			}
+		});
+
 		var QUIZ_MIDI_MIN = 59; // B3
 		var QUIZ_MIDI_MAX = 91; // G6
 
@@ -1101,7 +1288,7 @@ V:1 treble
 
 			var cats = getActiveQuizCategories();
 			var cat = cats[Math.floor(Math.random() * cats.length)];
-			var voicingList = quizVoicings[cat];
+			var voicingList = (cat === 'single') ? quizVoicings[cat] : getFilteredVoicings(cat);
 			var voicing = voicingList[Math.floor(Math.random() * voicingList.length)];
 
 			// Random root (0-11 semitones, 0=C)
@@ -1351,6 +1538,9 @@ V:1 treble
 			}
 		}
 		renderEditor();
+
+		// Quiz type filter dropdowns
+		initTypeDropdowns();
 
 		// Quiz text input listeners
 		document.getElementById("quiz-text-input").addEventListener("input", updateSubmitEnabled);
