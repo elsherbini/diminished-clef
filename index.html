@@ -176,6 +176,18 @@
 		#quiz-submit { font-weight: bold; }
 		#quiz-feedback { font-size: 15px; font-weight: bold; }
 		.quiz-streak { margin-left: auto; color: #666; font-size: 14px; }
+		#quiz-text-input {
+			width: 100%;
+			padding: 8px 12px;
+			font-size: 16px;
+			font-family: monospace;
+			border: 2px solid #ccc;
+			border-radius: 4px;
+			margin-bottom: 15px;
+		}
+		#quiz-text-input:focus { border-color: #333; outline: none; }
+		#quiz-text-input.correct { border-color: #28a745; background: #d4edda; }
+		#quiz-text-input.wrong { border-color: #dc3545; background: #f8d7da; }
 
 		/* Shared */
 		.abcjs-cursor { stroke: red; stroke-width: 2; opacity: 0.7; }
@@ -365,6 +377,11 @@ V:1 treble
 			<div id="quiz-staff" class="render-target" style="min-height:120px;margin-bottom:10px"></div>
 			<div id="quiz-audio" style="margin-bottom:15px"></div>
 			<div id="quiz-hint" class="hidden" style="margin-bottom:10px;font-size:15px;color:#666;font-style:italic"></div>
+			<div class="view-toggle" style="margin-bottom:10px">
+				<span style="color:#666;font-size:14px">Names:</span>
+				<button id="btn-names-traditional" class="active" onclick="setQuizNames('traditional')">Traditional</button>
+				<button id="btn-names-augdim" onclick="setQuizNames('augdim')">Aug-Dim</button>
+			</div>
 			<div class="note-grid">
 				<button data-pc="0" onclick="toggleNote(this)">C</button>
 				<button data-pc="1" onclick="toggleNote(this)">C#/Db</button>
@@ -379,6 +396,7 @@ V:1 treble
 				<button data-pc="10" onclick="toggleNote(this)">A#/Bb</button>
 				<button data-pc="11" onclick="toggleNote(this)">B</button>
 			</div>
+			<input type="text" id="quiz-text-input" placeholder="Or type notes here (e.g. CEG or C#Eb)" autocomplete="off">
 			<div class="quiz-actions">
 				<button id="quiz-submit" onclick="checkQuizAnswer()" disabled>Submit</button>
 				<button id="quiz-next" class="hidden" onclick="nextQuestion()">Next</button>
@@ -785,6 +803,10 @@ V:1 treble
 		var quizInversions = "all";
 		var quizShowHint = false;
 		var quizColors = "metaharmony";
+		var quizNameMode = "traditional";
+		var augDimNames = ['Ne', 'Ja', 'Ko', 'Pe', 'Na', 'Jo', 'Ke', 'Pa', 'No', 'Je', 'Ka', 'Po'];
+		var traditionalNames = ['C', 'C#/Db', 'D', 'D#/Eb', 'E', 'F', 'F#/Gb', 'G', 'G#/Ab', 'A', 'A#/Bb', 'B'];
+		var quizMidiNotes = [];
 
 		var QUIZ_MIDI_MIN = 59; // B3
 		var QUIZ_MIDI_MAX = 91; // G6
@@ -834,6 +856,149 @@ V:1 treble
 				el.classList.remove("hidden");
 			} else {
 				el.classList.add("hidden");
+			}
+		}
+
+		function setQuizNames(mode) {
+			quizNameMode = mode;
+			document.getElementById("btn-names-traditional").classList.toggle("active", mode === "traditional");
+			document.getElementById("btn-names-augdim").classList.toggle("active", mode === "augdim");
+			var names = mode === "augdim" ? augDimNames : traditionalNames;
+			document.querySelectorAll(".note-grid button").forEach(function(b) {
+				var pc = parseInt(b.getAttribute("data-pc"));
+				b.textContent = names[pc];
+			});
+			document.getElementById("quiz-text-input").placeholder = mode === "augdim"
+				? "Or type notes here (e.g. NePaKo)"
+				: "Or type notes here (e.g. CEG or C#Eb)";
+		}
+
+		var noteTokens = {
+			'c': 0, 'c#': 1, 'db': 1, 'd': 2, 'd#': 3, 'eb': 3,
+			'e': 4, 'e#': 5, 'fb': 4, 'f': 5, 'f#': 6, 'gb': 6,
+			'g': 7, 'g#': 8, 'ab': 8, 'a': 9, 'a#': 10, 'bb': 10,
+			'b': 11, 'b#': 0, 'cb': 11,
+			'ne': 0, 'ja': 1, 'ko': 2, 'pe': 3, 'na': 4,
+			'jo': 5, 'ke': 6, 'pa': 7, 'no': 8, 'je': 9,
+			'ka': 10, 'po': 11
+		};
+
+		function parseNoteString(input) {
+			var s = input.replace(/\s+/g, '').toLowerCase();
+			if (s.length === 0) return [];
+			var results = [];
+			function backtrack(pos, pcs) {
+				if (pos === s.length) { results.push(pcs.slice()); return; }
+				for (var len = 2; len >= 1; len--) {
+					if (pos + len > s.length) continue;
+					var token = s.substring(pos, pos + len);
+					if (noteTokens.hasOwnProperty(token)) {
+						pcs.push(noteTokens[token]);
+						backtrack(pos + len, pcs);
+						pcs.pop();
+					}
+				}
+			}
+			backtrack(0, []);
+			return results;
+		}
+
+		function isTextAnswerCorrect(input) {
+			var parsings = parseNoteString(input);
+			for (var i = 0; i < parsings.length; i++) {
+				var pcs = [];
+				for (var j = 0; j < parsings[i].length; j++) {
+					if (pcs.indexOf(parsings[i][j]) === -1) pcs.push(parsings[i][j]);
+				}
+				pcs.sort(function(a, b) { return a - b; });
+				if (pcs.length === quizCorrectPCs.length &&
+					pcs.every(function(pc, k) { return pc === quizCorrectPCs[k]; })) {
+					return true;
+				}
+			}
+			return false;
+		}
+
+		function updateSubmitEnabled() {
+			if (quizLocked) return;
+			var anySelected = document.querySelector(".note-grid button.selected");
+			var hasText = document.getElementById("quiz-text-input").value.trim().length > 0;
+			document.getElementById("quiz-submit").disabled = !(anySelected || hasText);
+		}
+
+		function showNoteLabels() {
+			var svg = document.querySelector("#quiz-staff svg");
+			if (!svg || quizMidiNotes.length === 0) return;
+
+			var noteHeads = svg.querySelectorAll('.abcjs-notehead');
+			if (noteHeads.length === 0) return;
+
+			// Get bounding box of each note head in its parent's coordinate space
+			var headInfos = [];
+			for (var i = 0; i < noteHeads.length; i++) {
+				var bbox = noteHeads[i].getBBox();
+				headInfos.push({
+					el: noteHeads[i],
+					x: bbox.x + bbox.width,
+					y: bbox.y + bbox.height / 2,
+					sortY: bbox.y
+				});
+			}
+
+			// Sort by y ascending (lowest y = highest pitch on staff)
+			headInfos.sort(function(a, b) { return a.sortY - b.sortY; });
+
+			// Sort MIDI notes descending (highest pitch first)
+			var sortedMidi = quizMidiNotes.slice().sort(function(a, b) { return b - a; });
+
+			var names = quizNameMode === "augdim" ? augDimNames : traditionalNames;
+
+			// Find rightmost note head x for left-aligning all labels
+			var maxX = 0;
+			for (var i = 0; i < headInfos.length; i++) {
+				if (headInfos[i].x > maxX) maxX = headInfos[i].x;
+			}
+
+			// Add all text labels first
+			var textEls = [];
+			var parent = headInfos[0].el.parentNode;
+			for (var i = 0; i < headInfos.length && i < sortedMidi.length; i++) {
+				var pc = midiToPitchClass(sortedMidi[i]);
+				var text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+				text.setAttribute("x", maxX + 5);
+				text.setAttribute("y", headInfos[i].y + 2);
+				text.setAttribute("class", "quiz-note-label");
+				text.setAttribute("font-size", "6");
+				text.setAttribute("font-family", "-apple-system, BlinkMacSystemFont, sans-serif");
+				text.setAttribute("fill", "#333");
+				text.setAttribute("pointer-events", "none");
+				text.textContent = names[pc];
+				parent.appendChild(text);
+				textEls.push(text);
+			}
+
+			// Single background rect spanning all labels
+			if (textEls.length > 0) {
+				var minY = Infinity, maxY = -Infinity, rectX = Infinity, rectW = 0;
+				for (var i = 0; i < textEls.length; i++) {
+					var tb = textEls[i].getBBox();
+					if (tb.y < minY) minY = tb.y;
+					if (tb.y + tb.height > maxY) maxY = tb.y + tb.height;
+					if (tb.x < rectX) rectX = tb.x;
+					if (tb.width > rectW) rectW = tb.width;
+				}
+				var pad = 1.5;
+				var rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+				rect.setAttribute("x", rectX - pad);
+				rect.setAttribute("y", minY - pad);
+				rect.setAttribute("width", rectW + pad * 2);
+				rect.setAttribute("height", (maxY - minY) + pad * 2);
+				rect.setAttribute("rx", 2);
+				rect.setAttribute("ry", 2);
+				rect.setAttribute("fill", "rgba(255,255,255,0.75)");
+				rect.setAttribute("pointer-events", "none");
+				rect.setAttribute("class", "quiz-note-label");
+				parent.insertBefore(rect, textEls[0]);
 			}
 		}
 
@@ -929,6 +1094,10 @@ V:1 treble
 			document.getElementById("quiz-submit").disabled = true;
 			document.getElementById("quiz-next").classList.add("hidden");
 			document.getElementById("quiz-feedback").textContent = "";
+			var textInput = document.getElementById("quiz-text-input");
+			textInput.value = "";
+			textInput.disabled = false;
+			textInput.classList.remove("correct", "wrong");
 
 			var cats = getActiveQuizCategories();
 			var cat = cats[Math.floor(Math.random() * cats.length)];
@@ -984,7 +1153,8 @@ V:1 treble
 				return;
 			}
 
-			// Store correct pitch classes
+			// Store MIDI notes and correct pitch classes
+			quizMidiNotes = midiNotes.slice();
 			quizCorrectPCs = [];
 			midiNotes.forEach(function(m) {
 				var pc = midiToPitchClass(m);
@@ -1048,23 +1218,31 @@ V:1 treble
 		function toggleNote(btn) {
 			if (quizLocked) return;
 			btn.classList.toggle("selected");
-			// Enable submit if at least one note selected
-			var anySelected = document.querySelector(".note-grid button.selected");
-			document.getElementById("quiz-submit").disabled = !anySelected;
+			updateSubmitEnabled();
 		}
 
 		function checkQuizAnswer() {
 			if (quizLocked) return;
+
+			var textInput = document.getElementById("quiz-text-input");
+			var textVal = textInput.value.trim();
+			var correct;
+
+			if (textVal.length > 0) {
+				correct = isTextAnswerCorrect(textVal);
+				textInput.classList.add(correct ? "correct" : "wrong");
+			} else {
+				var selectedPCs = [];
+				document.querySelectorAll(".note-grid button.selected").forEach(function(b) {
+					selectedPCs.push(parseInt(b.getAttribute("data-pc")));
+				});
+				selectedPCs.sort(function(a, b) { return a - b; });
+				correct = selectedPCs.length === quizCorrectPCs.length &&
+					selectedPCs.every(function(pc, i) { return pc === quizCorrectPCs[i]; });
+			}
+
 			quizLocked = true;
-
-			var selectedPCs = [];
-			document.querySelectorAll(".note-grid button.selected").forEach(function(b) {
-				selectedPCs.push(parseInt(b.getAttribute("data-pc")));
-			});
-			selectedPCs.sort(function(a, b) { return a - b; });
-
-			var correct = selectedPCs.length === quizCorrectPCs.length &&
-				selectedPCs.every(function(pc, i) { return pc === quizCorrectPCs[i]; });
+			showNoteLabels();
 
 			// Show feedback on buttons
 			document.querySelectorAll(".note-grid button").forEach(function(b) {
@@ -1094,6 +1272,7 @@ V:1 treble
 			document.getElementById("quiz-streak").textContent = "Streak: " + quizStreak + " | Best: " + quizBest;
 			document.getElementById("quiz-submit").disabled = true;
 			document.getElementById("quiz-next").classList.remove("hidden");
+			textInput.disabled = true;
 		}
 
 		function nextQuestion() {
@@ -1172,6 +1351,19 @@ V:1 treble
 			}
 		}
 		renderEditor();
+
+		// Quiz text input listeners
+		document.getElementById("quiz-text-input").addEventListener("input", updateSubmitEnabled);
+		document.getElementById("quiz-text-input").addEventListener("keydown", function(e) {
+			if (e.key === "Enter") {
+				e.preventDefault();
+				if (quizLocked) {
+					nextQuestion();
+				} else if (!document.getElementById("quiz-submit").disabled) {
+					checkQuizAnswer();
+				}
+			}
+		});
 	</script>
 </body>
 </html>
