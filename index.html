@@ -935,17 +935,21 @@ V:1 treble
 		function toggleTypeFilter(cat, idx) {
 			var pos = quizTypeFilters[cat].indexOf(idx);
 			if (pos !== -1) {
-				// Prevent deselecting last one
-				if (quizTypeFilters[cat].length <= 1) {
-					// Re-check the checkbox
-					var cb = document.querySelector('#dropdown-' + cat + ' input[data-idx="' + idx + '"]');
-					if (cb) cb.checked = true;
-					return;
-				}
 				quizTypeFilters[cat].splice(pos, 1);
+				// If none left, deactivate the category
+				if (quizTypeFilters[cat].length === 0) {
+					var btn = document.querySelector('[data-quiz-cat="' + cat + '"]');
+					if (btn) btn.classList.remove('active');
+					ensureOneCategory();
+				}
 			} else {
 				quizTypeFilters[cat].push(idx);
 				quizTypeFilters[cat].sort(function(a, b) { return a - b; });
+				// Re-activate the category if it was off
+				var btn = document.querySelector('[data-quiz-cat="' + cat + '"]');
+				if (btn && !btn.classList.contains('active')) {
+					btn.classList.add('active');
+				}
 			}
 			updateCatLabel(cat);
 		}
@@ -961,13 +965,14 @@ V:1 treble
 		}
 
 		function selectNoneTypes(cat) {
-			// Keep only the first one
-			quizTypeFilters[cat] = [0];
+			quizTypeFilters[cat] = [];
 			var checkboxes = document.querySelectorAll('#dropdown-' + cat + ' input[type="checkbox"]');
-			checkboxes.forEach(function(cb) {
-				cb.checked = (parseInt(cb.getAttribute('data-idx')) === 0);
-			});
+			checkboxes.forEach(function(cb) { cb.checked = false; });
 			updateCatLabel(cat);
+			// Deactivate the category
+			var btn = document.querySelector('[data-quiz-cat="' + cat + '"]');
+			if (btn) btn.classList.remove('active');
+			ensureOneCategory();
 		}
 
 		function updateCatLabel(cat) {
@@ -1250,12 +1255,25 @@ V:1 treble
 			return cats;
 		}
 
-		function toggleQuizCategory(btn) {
-			btn.classList.toggle("active");
-			// Ensure at least one category is active
+		function ensureOneCategory() {
 			if (getActiveQuizCategories().length === 0) {
-				btn.classList.add("active");
+				// Fall back to Single Notes
+				var single = document.querySelector('[data-quiz-cat="single"]');
+				if (single) single.classList.add('active');
 			}
+		}
+
+		function toggleQuizCategory(btn) {
+			var cat = btn.getAttribute('data-quiz-cat');
+
+			// If activating a category that has a dropdown and no types selected, open the dropdown instead
+			if (!btn.classList.contains('active') && cat !== 'single' && quizTypeFilters[cat] && quizTypeFilters[cat].length === 0) {
+				toggleTypeDropdown(cat, event);
+				return;
+			}
+
+			btn.classList.toggle("active");
+			ensureOneCategory();
 		}
 
 		function invertVoicing(intervals) {
