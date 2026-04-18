@@ -18519,9 +18519,9 @@ var diminishedColorMap = {
     bDim: 'rgb(216 37 84)'
   },
   bw: {
-    cDim: null,
-    bbDim: null,
-    bDim: null
+    cDim: 'currentColor',
+    bbDim: 'currentColor',
+    bDim: 'currentColor'
   }
 };
 var getDuration = function getDuration(elem) {
