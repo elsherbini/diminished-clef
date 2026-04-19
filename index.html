@@ -1125,7 +1125,7 @@ V:1 treble
 			document.getElementById("quiz-submit").disabled = !(anySelected || hasText);
 		}
 
-		function addNoteLabelsToStaff(midiNotesArray) {
+		function addNoteLabelsBelow(midiNotesArray) {
 			var svg = document.querySelector("#quiz-staff svg");
 			if (!svg || midiNotesArray.length === 0) return;
 
@@ -1143,12 +1143,8 @@ V:1 treble
 				});
 			}
 
-			// Sort by y ascending (lowest y = highest pitch on staff)
 			headInfos.sort(function(a, b) { return a.sortY - b.sortY; });
-
-			// Sort MIDI notes descending (highest pitch first)
 			var sortedMidi = midiNotesArray.slice().sort(function(a, b) { return b - a; });
-
 			var names = quizNameMode === "augdim" ? augDimNames : traditionalNames;
 
 			var textEls = [];
@@ -1169,7 +1165,6 @@ V:1 treble
 				textEls.push(text);
 			}
 
-			// Add background rect behind each label individually
 			for (var i = 0; i < textEls.length; i++) {
 				var tb = textEls[i].getBBox();
 				var pad = 1.5;
@@ -1188,7 +1183,71 @@ V:1 treble
 		}
 
 		function showNoteLabels() {
-			addNoteLabelsToStaff(quizMidiNotes);
+			var svg = document.querySelector("#quiz-staff svg");
+			if (!svg || quizMidiNotes.length === 0) return;
+
+			var noteHeads = svg.querySelectorAll('.abcjs-notehead');
+			if (noteHeads.length === 0) return;
+
+			var headInfos = [];
+			for (var i = 0; i < noteHeads.length; i++) {
+				var bbox = noteHeads[i].getBBox();
+				headInfos.push({
+					el: noteHeads[i],
+					x: bbox.x + bbox.width,
+					y: bbox.y + bbox.height / 2,
+					sortY: bbox.y
+				});
+			}
+
+			headInfos.sort(function(a, b) { return a.sortY - b.sortY; });
+			var sortedMidi = quizMidiNotes.slice().sort(function(a, b) { return b - a; });
+			var names = quizNameMode === "augdim" ? augDimNames : traditionalNames;
+
+			var maxX = 0;
+			for (var i = 0; i < headInfos.length; i++) {
+				if (headInfos[i].x > maxX) maxX = headInfos[i].x;
+			}
+
+			var textEls = [];
+			var parent = headInfos[0].el.parentNode;
+			for (var i = 0; i < headInfos.length && i < sortedMidi.length; i++) {
+				var pc = midiToPitchClass(sortedMidi[i]);
+				var text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+				text.setAttribute("x", maxX + 5);
+				text.setAttribute("y", headInfos[i].y + 2);
+				text.setAttribute("class", "quiz-note-label");
+				text.setAttribute("font-size", "6");
+				text.setAttribute("font-family", "-apple-system, BlinkMacSystemFont, sans-serif");
+				text.setAttribute("fill", "#333");
+				text.setAttribute("pointer-events", "none");
+				text.textContent = names[pc];
+				parent.appendChild(text);
+				textEls.push(text);
+			}
+
+			if (textEls.length > 0) {
+				var minY = Infinity, maxY = -Infinity, rectX = Infinity, rectW = 0;
+				for (var i = 0; i < textEls.length; i++) {
+					var tb = textEls[i].getBBox();
+					if (tb.y < minY) minY = tb.y;
+					if (tb.y + tb.height > maxY) maxY = tb.y + tb.height;
+					if (tb.x < rectX) rectX = tb.x;
+					if (tb.width > rectW) rectW = tb.width;
+				}
+				var pad = 1.5;
+				var rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+				rect.setAttribute("x", rectX - pad);
+				rect.setAttribute("y", minY - pad);
+				rect.setAttribute("width", rectW + pad * 2);
+				rect.setAttribute("height", (maxY - minY) + pad * 2);
+				rect.setAttribute("rx", 2);
+				rect.setAttribute("ry", 2);
+				rect.setAttribute("fill", "rgba(255,255,255,0.75)");
+				rect.setAttribute("pointer-events", "none");
+				rect.setAttribute("class", "quiz-note-label");
+				parent.insertBefore(rect, textEls[0]);
+			}
 		}
 
 		var REF_MIDI_NOTES = [62,63,64,65,66,67,68,69,70,71,72,73];
@@ -1201,7 +1260,7 @@ V:1 treble
 				staffwidth: 300,
 				diminishedColors: quizColors
 			});
-			addNoteLabelsToStaff(REF_MIDI_NOTES);
+			addNoteLabelsBelow(REF_MIDI_NOTES);
 		}
 
 		function toggleShowNotes() {
