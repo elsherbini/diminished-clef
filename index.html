@@ -446,6 +446,7 @@ V:1 treble
 			</div>
 			<div id="quiz-staff" class="render-target" style="min-height:120px;margin-bottom:10px"></div>
 			<div id="quiz-audio" style="margin-bottom:15px"></div>
+			<button id="btn-show-notes" onclick="toggleShowNotes()" style="padding:6px 16px;border:1px solid #ccc;background:#f5f5f5;cursor:pointer;font-size:14px;margin-bottom:10px">Show Notes</button>
 			<div id="quiz-hint" class="hidden" style="margin-bottom:10px;font-size:15px;color:#666;font-style:italic"></div>
 			<div class="view-toggle" style="margin-bottom:10px">
 				<span style="color:#666;font-size:14px">Names:</span>
@@ -872,6 +873,7 @@ V:1 treble
 		var quizCurrentAbc = "";
 		var quizInversions = "all";
 		var quizShowHint = false;
+		var quizShowNotes = false;
 		var quizColors = "metaharmony";
 		var quizNameMode = "traditional";
 		var augDimNames = ['Ne', 'Ja', 'Ko', 'Pe', 'Na', 'Jo', 'Ke', 'Pa', 'No', 'Je', 'Ka', 'Po'];
@@ -1014,14 +1016,17 @@ V:1 treble
 			document.getElementById("btn-quiz-color-metaharmony").classList.toggle("active", mode === "metaharmony");
 			document.getElementById("btn-quiz-color-bw").classList.toggle("active", mode === "bw");
 			document.getElementById("btn-quiz-color-elements").classList.toggle("active", mode === "elements");
-			// Re-render current staff with new colors (same question)
-			if (quizInitialized && quizCurrentAbc) {
-				ABCJS.renderAbc("quiz-staff", makeDimAbc(quizCurrentAbc), {
-					responsive: "resize",
-					add_classes: true,
-					staffwidth: 200,
-					diminishedColors: quizColors
-				});
+			if (quizInitialized) {
+				if (quizShowNotes) {
+					renderNoteReference();
+				} else if (quizCurrentAbc) {
+					ABCJS.renderAbc("quiz-staff", makeDimAbc(quizCurrentAbc), {
+						responsive: "resize",
+						add_classes: true,
+						staffwidth: 200,
+						diminishedColors: quizColors
+					});
+				}
 			}
 		}
 
@@ -1063,6 +1068,8 @@ V:1 treble
 			document.getElementById("quiz-text-input").placeholder = mode === "augdim"
 				? "Or type notes here (e.g. NePaKo)"
 				: "Or type notes here (e.g. CEG or C#Eb)";
+			// Refresh labels if reference view is showing
+			if (quizShowNotes) renderNoteReference();
 		}
 
 		var noteTokens = {
@@ -1118,14 +1125,13 @@ V:1 treble
 			document.getElementById("quiz-submit").disabled = !(anySelected || hasText);
 		}
 
-		function showNoteLabels() {
+		function addNoteLabelsToStaff(midiNotesArray) {
 			var svg = document.querySelector("#quiz-staff svg");
-			if (!svg || quizMidiNotes.length === 0) return;
+			if (!svg || midiNotesArray.length === 0) return;
 
 			var noteHeads = svg.querySelectorAll('.abcjs-notehead');
 			if (noteHeads.length === 0) return;
 
-			// Get bounding box of each note head in its parent's coordinate space
 			var headInfos = [];
 			for (var i = 0; i < noteHeads.length; i++) {
 				var bbox = noteHeads[i].getBBox();
@@ -1141,17 +1147,15 @@ V:1 treble
 			headInfos.sort(function(a, b) { return a.sortY - b.sortY; });
 
 			// Sort MIDI notes descending (highest pitch first)
-			var sortedMidi = quizMidiNotes.slice().sort(function(a, b) { return b - a; });
+			var sortedMidi = midiNotesArray.slice().sort(function(a, b) { return b - a; });
 
 			var names = quizNameMode === "augdim" ? augDimNames : traditionalNames;
 
-			// Find rightmost note head x for left-aligning all labels
 			var maxX = 0;
 			for (var i = 0; i < headInfos.length; i++) {
 				if (headInfos[i].x > maxX) maxX = headInfos[i].x;
 			}
 
-			// Add all text labels first
 			var textEls = [];
 			var parent = headInfos[0].el.parentNode;
 			for (var i = 0; i < headInfos.length && i < sortedMidi.length; i++) {
@@ -1169,7 +1173,6 @@ V:1 treble
 				textEls.push(text);
 			}
 
-			// Single background rect spanning all labels
 			if (textEls.length > 0) {
 				var minY = Infinity, maxY = -Infinity, rectX = Infinity, rectW = 0;
 				for (var i = 0; i < textEls.length; i++) {
@@ -1191,6 +1194,47 @@ V:1 treble
 				rect.setAttribute("pointer-events", "none");
 				rect.setAttribute("class", "quiz-note-label");
 				parent.insertBefore(rect, textEls[0]);
+			}
+		}
+
+		function showNoteLabels() {
+			addNoteLabelsToStaff(quizMidiNotes);
+		}
+
+		var REF_MIDI_NOTES = [62,63,64,65,66,67,68,69,70,71,72,73];
+
+		function renderNoteReference() {
+			var abc = "L:1/4\nK:C\n" + REF_MIDI_NOTES.map(midiToAbc).join(" ");
+			ABCJS.renderAbc("quiz-staff", makeDimAbc(abc), {
+				responsive: "resize",
+				add_classes: true,
+				staffwidth: 300,
+				diminishedColors: quizColors
+			});
+			addNoteLabelsToStaff(REF_MIDI_NOTES);
+		}
+
+		function toggleShowNotes() {
+			quizShowNotes = !quizShowNotes;
+			var btn = document.getElementById("btn-show-notes");
+			btn.classList.toggle("active", quizShowNotes);
+			btn.style.background = quizShowNotes ? "#333" : "#f5f5f5";
+			btn.style.color = quizShowNotes ? "#fff" : "";
+			btn.style.borderColor = quizShowNotes ? "#333" : "#ccc";
+
+			if (quizShowNotes) {
+				renderNoteReference();
+			} else {
+				// Restore quiz question
+				if (quizCurrentAbc) {
+					ABCJS.renderAbc("quiz-staff", makeDimAbc(quizCurrentAbc), {
+						responsive: "resize",
+						add_classes: true,
+						staffwidth: 200,
+						diminishedColors: quizColors
+					});
+					if (quizLocked) showNoteLabels();
+				}
 			}
 		}
 
@@ -1386,14 +1430,18 @@ V:1 treble
 			var abc = "L:1/4\nK:C\n" + abcNotes + "4";
 			quizCurrentAbc = abc;
 
-			// Render on diminished staff
-			var dimAbc = makeDimAbc(abc);
-			ABCJS.renderAbc("quiz-staff", dimAbc, {
-				responsive: "resize",
-				add_classes: true,
-				staffwidth: 200,
-				diminishedColors: quizColors
-			});
+			// Render on diminished staff (or reference view if toggled on)
+			if (quizShowNotes) {
+				renderNoteReference();
+			} else {
+				var dimAbc = makeDimAbc(abc);
+				ABCJS.renderAbc("quiz-staff", dimAbc, {
+					responsive: "resize",
+					add_classes: true,
+					staffwidth: 200,
+					diminishedColors: quizColors
+				});
+			}
 
 			// Set up audio
 			setupQuizAudio(abc);
