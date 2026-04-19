@@ -1156,7 +1156,7 @@ V:1 treble
 			for (var i = 0; i < headInfos.length && i < sortedMidi.length; i++) {
 				var pc = midiToPitchClass(sortedMidi[i]);
 				var text = document.createElementNS("http://www.w3.org/2000/svg", "text");
-				text.setAttribute("x", headInfos[i].cx);
+				text.setAttribute("x", headInfos[i].cx - 1);
 				text.setAttribute("y", headInfos[i].y + 10);
 				text.setAttribute("text-anchor", "middle");
 				text.setAttribute("class", "quiz-note-label");
